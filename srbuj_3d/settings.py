@@ -73,13 +73,21 @@ WSGI_APPLICATION = 'srbuj_3d.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+#ENGINE': 'django.db.backends.mysql',
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'ventas_db',
+        'USER': 'root',
+        'PASSWORD': 'elingeniero',
+        'HOST': 'localhost',
+        'PORT': '3306',
     }
 }
+
+
+
 
 
 # Password validation
