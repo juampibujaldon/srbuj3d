@@ -55,3 +55,14 @@ CREATE TABLE STL_Modelo (
     tiempo_estimado FLOAT NOT NULL,
     FOREIGN KEY (usuario_id) REFERENCES Usuario(id) ON DELETE CASCADE
 );
+
+
+
+
+
+
+
+
+
+
+
