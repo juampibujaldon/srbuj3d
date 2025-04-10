@@ -1,7 +1,7 @@
 from django.db import models
 
 
-class Usuario(models.Model):
+class User(models.Model):
     nombre = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
     contraseña = models.CharField(max_length=255)
@@ -18,7 +18,7 @@ class Admin(models.Model):
     def __str__(self):
         return self.nombre
 
-class Producto(models.Model):
+class Product(models.Model):
     nombre = models.CharField(max_length=255)
     descripcion = models.TextField(blank=True, null=True)
     precio = models.DecimalField(max_digits=10, decimal_places=2)
@@ -27,7 +27,7 @@ class Producto(models.Model):
     def __str__(self):
         return self.nombre
 
-class Pedido(models.Model):
+class Order(models.Model):
     ESTADO_CHOICES = [
         ('pendiente', 'Pendiente'),
         ('procesando', 'Procesando'),
@@ -36,7 +36,7 @@ class Pedido(models.Model):
         ('cancelado', 'Cancelado'),
     ]
     
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     fecha = models.DateField(auto_now_add=True)
     total = models.DecimalField(max_digits=10, decimal_places=2)
     estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='pendiente')
@@ -44,15 +44,15 @@ class Pedido(models.Model):
     def __str__(self):
         return f'Pedido {self.id} - {self.usuario.nombre}'
 
-class Carrito(models.Model):
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
+class Cart(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
     cantidad = models.PositiveIntegerField()
 
     def __str__(self):
         return f'{self.cantidad} x {self.producto.nombre} - {self.usuario.nombre}'
 
-class Pago(models.Model):
+class Payment(models.Model):
     METODO_CHOICES = [
         ('tarjeta', 'Tarjeta'),
         ('transferencia', 'Transferencia'),
@@ -67,7 +67,7 @@ class Pago(models.Model):
         ('rechazado', 'Rechazado'),
     ]
 
-    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE)
     metodo = models.CharField(max_length=20, choices=METODO_CHOICES)
     estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='pendiente')
 
@@ -75,7 +75,7 @@ class Pago(models.Model):
         return f'Pago {self.id} - {self.pedido.id} ({self.estado})'
 
 class STLModelo(models.Model):
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     nombre_archivo = models.CharField(max_length=255)
     costo = models.DecimalField(max_digits=10, decimal_places=2)
     tiempo_estimado = models.FloatField()
