@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework import routers
 from ventas import views
 
+
 router = routers.DefaultRouter()
 router.register(r'user', views.UserView, basename='User')
 router.register(r'admin', views.UserView, basename='Admin')
@@ -14,4 +15,5 @@ router.register(r'stlmodel', views.UserView, basename='STLModel')
 
 urlpatterns = [
     path('ventas/model', include(router.urls)),
+
 ]
