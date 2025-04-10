@@ -3,9 +3,7 @@ from django.shortcuts import render
 from django.shortcuts import render
 from rest_framework import viewsets
 from .serializer import *
-from .models import *
-from .serializer import CompanySerializer
-
+from .models import *  
 
 class UserView(viewsets.ModelViewSet):
     serializer_class = UserSerializer
