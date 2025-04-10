@@ -74,7 +74,7 @@ class Payment(models.Model):
     def __str__(self):
         return f'Pago {self.id} - {self.pedido.id} ({self.estado})'
 
-class STLModelo(models.Model):
+class STLModel(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     nombre_archivo = models.CharField(max_length=255)
     costo = models.DecimalField(max_digits=10, decimal_places=2)
