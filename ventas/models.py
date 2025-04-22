@@ -82,3 +82,13 @@ class STLModel(models.Model):
 
     def __str__(self):
         return self.nombre_archivo
+
+class Sell(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    cantidad = models.PositiveIntegerField()
+    fecha = models.DateField(auto_now_add=True)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    def __str__(self):
+        return f'Venta {self.id} - {self.producto.nombre} ({self.cantidad})'
+        

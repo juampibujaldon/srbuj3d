@@ -1,11 +1,6 @@
 from rest_framework import serializers
 from .models import *
 
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = '__all__'
-
 class AdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = Admin
@@ -34,4 +29,10 @@ class PaymentSerializer(serializers.ModelSerializer):
 class STLModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = STLModel
+        fields = '__all__'
+
+
+class SellSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sell
         fields = '__all__'

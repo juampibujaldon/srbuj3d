@@ -4,10 +4,8 @@ from django.shortcuts import render
 from rest_framework import viewsets
 from .serializer import *
 from .models import *  
+from rest_framework import viewsets
 
-class UserView(viewsets.ModelViewSet):
-    serializer_class = UserSerializer
-    queryset = User.objects.all()
 
 class AdminView(viewsets.ModelViewSet):
     serializer_class = AdminSerializer
@@ -32,3 +30,8 @@ class PaymentView(viewsets.ModelViewSet):
 class STLModelView(viewsets.ModelViewSet):
     serializer_class = STLModelSerializer
     queryset = STLModel.objects.all()
+
+class SellView(viewsets.ModelViewSet):
+    serializer_class = SellSerializer
+    queryset = Sell.objects.all()
+
