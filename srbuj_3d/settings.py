@@ -83,7 +83,7 @@ WSGI_APPLICATION = 'srbuj_3d.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'ventas_db',
+        'NAME': 'ventas_db2',
         'USER': 'root',
         'PASSWORD': 'elingeniero',
         'HOST': 'localhost',

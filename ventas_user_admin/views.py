@@ -10,8 +10,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import authenticate, login, logout
 from rest_framework.permissions import IsAuthenticated
-# from .serializers import RegisterSerializer
 from .models import User
+from .serializer import UserSerializer, UserCreateByAdminSerializer
+from rest_framework import generics, permissions, serializers
+from .permissions import IsAdminUserCustom
+
 
 
 class UserView(viewsets.ModelViewSet):
@@ -20,19 +23,6 @@ class UserView(viewsets.ModelViewSet):
 
 #!ADAPTARLO A MI DB
 
-# class LoginView(APIView):
-#     def post(self, request):
-#         username = request.data.get("username")
-#         password = request.data.get("password")
-#         user = authenticate(request, username=username, password=password)
-#         if user is not None:
-#             login(request, user)
-#             return Response({
-#                 "message": "Login exitoso",
-#                 "username": user.username,
-#                 "role": user.role
-#             }, status=status.HTTP_200_OK)
-#         return Response({"error": "Credenciales inválidas"}, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginView(APIView):
     def post(self, request):
@@ -68,3 +58,13 @@ class LogoutView(APIView):
     def post(self, request):
         logout(request)
         return Response({"message": "Logout exitoso"}, status=status.HTTP_200_OK)
+    
+class CreateUserByAdminView(generics.CreateAPIView):
+    serializer_class = UserCreateByAdminSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminUserCustom]
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.role != 'admin':
+            raise serializers.ValidationError({"detail": "No tienes permiso para crear usuarios."})
+        serializer.save(company=user.company) 
