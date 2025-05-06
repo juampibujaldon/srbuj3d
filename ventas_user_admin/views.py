@@ -11,7 +11,7 @@ from rest_framework import status
 from django.contrib.auth import authenticate, login, logout
 from rest_framework.permissions import IsAuthenticated
 # from .serializers import RegisterSerializer
-from .models import CustomUser
+from .models import User
 
 
 class UserView(viewsets.ModelViewSet):
