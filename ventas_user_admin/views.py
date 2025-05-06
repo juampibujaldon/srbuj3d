@@ -20,19 +20,47 @@ class UserView(viewsets.ModelViewSet):
 
 #!ADAPTARLO A MI DB
 
+# class LoginView(APIView):
+#     def post(self, request):
+#         username = request.data.get("username")
+#         password = request.data.get("password")
+#         user = authenticate(request, username=username, password=password)
+#         if user is not None:
+#             login(request, user)
+#             return Response({
+#                 "message": "Login exitoso",
+#                 "username": user.username,
+#                 "role": user.role
+#             }, status=status.HTTP_200_OK)
+#         return Response({"error": "Credenciales inválidas"}, status=status.HTTP_400_BAD_REQUEST)
+
 class LoginView(APIView):
     def post(self, request):
-        username = request.data.get("username")
+        identifier = request.data.get("identifier")
         password = request.data.get("password")
-        user = authenticate(request, username=username, password=password)
-        if user is not None:
+        if not identifier or not password:
+            return Response({"error": "Se requiere 'identifier' y 'password'"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+        try:
+            user_obj = User.objects.get(username=identifier)
+        except User.DoesNotExist:
+            try:
+                user_obj = User.objects.get(email=identifier)
+            except User.DoesNotExist:
+                return Response({"error": "Usuario no encontrado"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = authenticate(request, username=user_obj.username, password=password)
+        if user:
             login(request, user)
             return Response({
                 "message": "Login exitoso",
                 "username": user.username,
                 "role": user.role
             }, status=status.HTTP_200_OK)
-        return Response({"error": "Credenciales inválidas"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({"error": "Credenciales inválidas"}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
