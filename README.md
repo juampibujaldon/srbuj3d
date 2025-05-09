@@ -3,12 +3,19 @@ The project aims to facilitate the connection between creators/designers and buy
 🚀 Features
 
 🛒 Shopping cart and order management
+
 👤 User authentication and admin panel
+
 📦 Management of physical and digital products (.stl)
+
 💳 Payment gateway integration (in progress)
+
 🔍 Product search and filtering
+
 📁 STL file download after purchase
+
 ⚙️ Backend with Django + MySQL
+
 🌐 Frontend with React
 
 🛠️ Technologies
