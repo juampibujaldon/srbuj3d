@@ -2,21 +2,14 @@ srbuj_3d is an e-commerce platform developed with Django, MySQL, and React, focu
 The project aims to facilitate the connection between creators/designers and buyers interested in customized products or digital files for 3D printing.
 🚀 Features
 
-    🛒 Shopping cart and order management
-
-    👤 User authentication and admin panel
-
-    📦 Management of physical and digital products (.stl)
-
-    💳 Payment gateway integration (in progress)
-
-    🔍 Product search and filtering
-
-    📁 STL file download after purchase
-
-    ⚙️ Backend with Django + MySQL
-
-    🌐 Frontend with React
+🛒 Shopping cart and order management
+👤 User authentication and admin panel
+📦 Management of physical and digital products (.stl)
+💳 Payment gateway integration (in progress)
+🔍 Product search and filtering
+📁 STL file download after purchase
+⚙️ Backend with Django + MySQL
+🌐 Frontend with React
 
 🛠️ Technologies
 
@@ -32,7 +25,7 @@ The project aims to facilitate the connection between creators/designers and buy
 
 📦 Local Installation (development mode)
 
-    Clone the repository:
+Clone the repository:
 
 ```bash
 git clone https://github.com/tuusuario/srbuj_3d.git
