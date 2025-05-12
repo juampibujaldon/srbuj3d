@@ -1,13 +1,15 @@
 from django.db import models
+from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.hashers import make_password
 
 
-class User(models.Model):
+class User(AbstractUser):
     nombre = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
-    contraseña = models.CharField(max_length=255)
 
     def __str__(self):
         return self.nombre
+
 
 class Admin(models.Model):
     nombre = models.CharField(max_length=100)

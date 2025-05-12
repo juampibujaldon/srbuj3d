@@ -1,11 +1,8 @@
 from django.shortcuts import render
-
-from django.shortcuts import render
 from rest_framework import viewsets
 from .serializer import *
 from .models import *  
 from rest_framework import viewsets
-
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 # from ventas_user_admin.views import IsCompanyAdmin
@@ -19,6 +16,8 @@ from .serializer import (
     STLModelSerializer,
     SellSerializer,
 )
+from django.contrib.auth.models import AbstractUser
+from .models import User
 
 class AdminView(viewsets.ModelViewSet):
     serializer_class = AdminSerializer
@@ -55,3 +54,25 @@ class SellView(viewsets.ModelViewSet):
     queryset = Sell.objects.all()
     permission_classes = [IsAuthenticated]
 
+# class User(AbstractUser):
+#     nombre = models.CharField(max_length=100)
+#     email = models.EmailField(unique=True)
+#     contraseña = models.CharField(max_length=255)
+
+#     groups = models.ManyToManyField(
+#         'auth.Group',
+#         related_name='ventas_user_groups',  # Cambia el related_name para evitar conflictos
+#         blank=True,
+#         help_text='The groups this user belongs to.',
+#         verbose_name='groups',
+#     )
+#     user_permissions = models.ManyToManyField(
+#         'auth.Permission',
+#         related_name='ventas_user_permissions',  # Cambia el related_name para evitar conflictos
+#         blank=True,
+#         help_text='Specific permissions for this user.',
+#         verbose_name='user permissions',
+#     )
+
+#     def __str__(self):
+#         return self.nombre

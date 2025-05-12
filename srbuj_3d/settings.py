@@ -73,6 +73,8 @@ TEMPLATES = [
     },
 ]
 
+AUTH_USER_MODEL = 'ventas.User'
+
 WSGI_APPLICATION = 'srbuj_3d.wsgi.application'
 
 
