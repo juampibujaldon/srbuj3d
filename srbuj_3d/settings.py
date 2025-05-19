@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_spectacular',
     'ventas_user_admin',
+    'ventas_user_admin.User'
 ]
 
 MIDDLEWARE = [
@@ -73,7 +74,9 @@ TEMPLATES = [
     },
 ]
 
-AUTH_USER_MODEL = 'ventas.User'
+#AUTH_USER_MODEL = 'ventas.User'
+AUTH_USER_MODEL = 'ventas_user_admin.User'
+
 
 WSGI_APPLICATION = 'srbuj_3d.wsgi.application'
 

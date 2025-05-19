@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from .models import *
+# from django.contrib.auth import get_user_model
+# User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
@@ -7,7 +9,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password2', 'name', 'role', 'company', 'branch']
+        fields = ['username', 'email', 'password','phone']
         extra_kwargs = {'email': {'required': True}}
 
     def validate(self, attrs):

@@ -8,7 +8,6 @@ from .models import User
 from .serializer import UserSerializer, UserCreateByAdminSerializer
 from .permissions import IsAdminUserCustom
 
-
 class UserView(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     queryset = User.objects.all()
@@ -44,4 +43,4 @@ class CreateUserByAdminView(generics.CreateAPIView):
         user = self.request.user
         if user.role != 'admin':
             raise serializers.ValidationError({"detail": "No tienes permiso para crear usuarios."})
-        serializer.save(company=user.company) 
+        serializer.save(company=user.company)
