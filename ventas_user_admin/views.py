@@ -15,7 +15,6 @@ class UserView(viewsets.ModelViewSet):
 
 #!ADAPTARLO A MI DB
 
-
 class LoginView(APIView):
     def post(self, request):
         username = request.data.get("username")
