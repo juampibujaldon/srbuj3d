@@ -4,7 +4,6 @@ from ventas import views
 
 
 router = routers.DefaultRouter()
-# router.register(r'user', views.UserView, basename='User')
 router.register(r'admin', views.AdminView, basename='Admin')
 router.register(r'product', views.ProductView, basename='Product')
 router.register(r'order', views.OrderView, basename='Order')

@@ -12,8 +12,6 @@ class UserView(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     queryset = User.objects.all()
 
-#!ADAPTARLO A MI DB
-
 class LoginView(APIView):
     def post(self, request):
         username = request.data.get("username")

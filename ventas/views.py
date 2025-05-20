@@ -5,7 +5,7 @@ from .models import *
 from rest_framework import viewsets
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
-# from ventas_user_admin.views import IsCompanyAdmin
+
 from .models import Admin, Product, Order, Cart, Payment, STLModel, Sell  
 from .serializer import (
     AdminSerializer,
