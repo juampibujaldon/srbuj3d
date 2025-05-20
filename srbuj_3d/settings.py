@@ -42,7 +42,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_spectacular',
     'ventas_user_admin',
-    'ventas_user_admin.User'
+    # 'ventas_user_admin.User'
 ]
 
 MIDDLEWARE = [
