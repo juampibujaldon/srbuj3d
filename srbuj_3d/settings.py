@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_spectacular',
     'ventas_user_admin',
+    'rest_framework.authtoken',
 ]
 
 MIDDLEWARE = [

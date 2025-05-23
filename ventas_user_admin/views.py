@@ -7,6 +7,8 @@ from rest_framework import serializers
 from .models import User
 from .serializer import UserSerializer, UserCreateByAdminSerializer
 from .permissions import IsAdminUserCustom
+from rest_framework.authtoken.models import Token
+
 
 class UserView(viewsets.ModelViewSet):
     serializer_class = UserSerializer
@@ -25,13 +27,24 @@ class LoginView(APIView):
                 "role": user.role
             }, status=status.HTTP_200_OK)
         return Response({"error": "Credenciales inválidas"}, status=status.HTTP_400_BAD_REQUEST)
-
+    
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        logout(request)
+        # Elimina el token del usuario autenticado
+        try:
+            request.user.auth_token.delete()
+        except (AttributeError, Token.DoesNotExist):
+            pass
         return Response({"message": "Logout exitoso"}, status=status.HTTP_200_OK)
+
+# class LogoutView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         logout(request)
+#         return Response({"message": "Logout exitoso"}, status=status.HTTP_200_OK)
     
 class CreateUserByAdminView(generics.CreateAPIView):
     serializer_class = UserCreateByAdminSerializer
