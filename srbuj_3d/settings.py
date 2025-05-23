@@ -41,6 +41,8 @@ INSTALLED_APPS = [
     'ventas',
     'corsheaders',
     'drf_spectacular',
+    'ventas_user_admin',
+    'rest_framework.authtoken',
 ]
 
 MIDDLEWARE = [
@@ -72,6 +74,9 @@ TEMPLATES = [
     },
 ]
 
+AUTH_USER_MODEL = 'ventas_user_admin.User'
+
+
 WSGI_APPLICATION = 'srbuj_3d.wsgi.application'
 
 
@@ -82,7 +87,7 @@ WSGI_APPLICATION = 'srbuj_3d.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'ventas_db',
+        'NAME': 'ventas_db3',
         'USER': 'root',
         'PASSWORD': 'elingeniero',
         'HOST': 'localhost',
