@@ -29,15 +29,21 @@ class LoginView(APIView):
         return Response({"error": "Credenciales inválidas"}, status=status.HTTP_400_BAD_REQUEST)
     
 class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]
-
     def post(self, request):
-        # Elimina el token del usuario autenticado
-        try:
-            request.user.auth_token.delete()
-        except (AttributeError, Token.DoesNotExist):
-            pass
-        return Response({"message": "Logout exitoso"}, status=status.HTTP_200_OK)
+        if request.user.is_authenticated:
+            logout(request)
+            return Response({"message": "Sesión cerrada"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "No hay sesión activa"}, status=status.HTTP_400_BAD_REQUEST)
+    # permission_classes = [IsAuthenticated]
+
+    # def post(self, request):
+    #     # Elimina el token del usuario autenticado
+    #     try:
+    #         request.user.auth_token.delete()
+    #     except (AttributeError, Token.DoesNotExist):
+    #         pass
+    #     return Response({"message": "Logout exitoso"}, status=status.HTTP_200_OK)
 
 # class LogoutView(APIView):
 #     permission_classes = [IsAuthenticated]
@@ -49,6 +55,7 @@ class LogoutView(APIView):
 class CreateUserByAdminView(generics.CreateAPIView):
     serializer_class = UserCreateByAdminSerializer
     permission_classes = [permissions.IsAuthenticated, IsAdminUserCustom]
+    
 
     def perform_create(self, serializer):
         user = self.request.user
