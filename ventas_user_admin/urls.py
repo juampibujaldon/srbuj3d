@@ -3,14 +3,6 @@ from rest_framework import routers
 from .views import UserView
 from .views import UserView, LoginView, LogoutView, CreateUserByAdminView
 
-# router = routers.DefaultRouter()
-# router.register(r'register', UserView, basename='register')
-
-# from rest_framework_simplejwt.views import (
-#     TokenObtainPairView,
-#     TokenRefreshView,
-#     TokenVerifyView,
-# )
 urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),

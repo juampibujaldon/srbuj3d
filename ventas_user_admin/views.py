@@ -35,22 +35,6 @@ class LogoutView(APIView):
             return Response({"message": "Sesión cerrada"}, status=status.HTTP_200_OK)
         else:
             return Response({"error": "No hay sesión activa"}, status=status.HTTP_400_BAD_REQUEST)
-    # permission_classes = [IsAuthenticated]
-
-    # def post(self, request):
-    #     # Elimina el token del usuario autenticado
-    #     try:
-    #         request.user.auth_token.delete()
-    #     except (AttributeError, Token.DoesNotExist):
-    #         pass
-    #     return Response({"message": "Logout exitoso"}, status=status.HTTP_200_OK)
-
-# class LogoutView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-#         logout(request)
-#         return Response({"message": "Logout exitoso"}, status=status.HTTP_200_OK)
     
 class CreateUserByAdminView(generics.CreateAPIView):
     serializer_class = UserCreateByAdminSerializer
