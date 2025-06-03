@@ -10,6 +10,14 @@ class Admin(models.Model):
 
     def __str__(self):
         return self.nombre
+    
+class Register(models.Model):
+    nombre = models.CharField(max_length=100)
+    email = models.EmailField(unique=True)
+    contraseña = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.nombre
 
 class Product(models.Model):
     nombre = models.CharField(max_length=255)

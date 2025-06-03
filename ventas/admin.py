@@ -5,6 +5,7 @@ User = get_user_model()
 # Register your models here.
 
 admin.site.register(Admin)
+admin.site.register(Register)
 admin.site.register(Product)
 admin.site.register(Order)
 admin.site.register(Cart)
