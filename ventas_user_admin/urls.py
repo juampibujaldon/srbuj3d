@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework import routers
-from .views import UserView
+# from .views import UserView
 # from .views import UserView, LoginView, LogoutView, CreateUserByAdminView
 from .views import RegisterView, current_user, UpdateUserRoleView
 
