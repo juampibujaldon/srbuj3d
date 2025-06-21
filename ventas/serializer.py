@@ -39,8 +39,6 @@ class SellSerializer(serializers.ModelSerializer):
         model = Sell
         fields = '__all__'
 
-
-
 class OrderPanelSerializer(serializers.ModelSerializer):
     producto_nombre = serializers.CharField(source='product.nombre', read_only=True)
     producto_imagen = serializers.ImageField(source='product.imagen', read_only=True)
@@ -64,3 +62,8 @@ class OrderPanelSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'direccion_envio') and 'san rafael' in obj.direccion_envio.lower():
             return 'envío local'
         return 'envío nacional'
+
+class PaymentMethodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentMethod
+        fields = '__all__'

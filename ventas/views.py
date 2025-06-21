@@ -4,6 +4,8 @@ from rest_framework import generics, permissions
 from .models import Order
 from .serializer import OrderPanelSerializer
 from .models import User, Admin, Product, Order, Cart, Payment, STLModel, Sell
+from .models import PaymentMethod
+from .serializer import PaymentMethodSerializer
 from .serializer import (
     AdminSerializer,
     ProductSerializer,
@@ -111,8 +113,12 @@ class SellView(viewsets.ModelViewSet):
     queryset = Sell.objects.all()
     permission_classes = [IsAuthenticated]
 
-
 class OrderPanelView(generics.ListAPIView):
     queryset = Order.objects.all()
     serializer_class = OrderPanelSerializer
     permission_classes = [permissions.IsAdminUser] 
+
+class PaymentMethodListView(generics.ListAPIView):
+    queryset = PaymentMethod.objects.filter(activo=True)
+    serializer_class = PaymentMethodSerializer
+    permission_classes = [permissions.AllowAny]
