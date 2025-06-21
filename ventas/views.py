@@ -1,11 +1,10 @@
-from rest_framework import viewsets, generics, permissions, serializers
+from rest_framework import viewsets, generics, permissions, serializers, status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import generics, permissions
-from .models import Order
-from .serializer import OrderPanelSerializer
-from .models import User, Admin, Product, Order, Cart, Payment, STLModel, Sell
-from .models import PaymentMethod
-from .serializer import PaymentMethodSerializer
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.db import transaction
+
+from .models import User, Admin, Product, Order, Cart, Payment, STLModel, Sell, PaymentMethod
 from .serializer import (
     AdminSerializer,
     ProductSerializer,
@@ -14,8 +13,9 @@ from .serializer import (
     PaymentSerializer,
     STLModelSerializer,
     SellSerializer,
+    PaymentMethodSerializer,
+    OrderPanelSerializer,
 )
-
 
 # Crear producto (con stock inicial)
 class ProductCreateView(generics.CreateAPIView):
@@ -43,9 +43,6 @@ class ProductDeleteView(generics.DestroyAPIView):
 class ProductListView(generics.ListAPIView):
     queryset = Product.objects.filter(activo=True)
     serializer_class = ProductSerializer
-    # serializer_class = ProductSerializer
-    # def get_queryset(self):
-    #     return Product.objects.filter(activo=True)
 
 class OrderCreateView(generics.CreateAPIView):
     queryset = Order.objects.all()
@@ -122,3 +119,32 @@ class PaymentMethodListView(generics.ListAPIView):
     queryset = PaymentMethod.objects.filter(activo=True)
     serializer_class = PaymentMethodSerializer
     permission_classes = [permissions.AllowAny]
+
+class CartCheckoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        user = request.user
+        cart_items = Cart.objects.filter(user=user)
+        if not cart_items.exists():
+            return Response({"detail": "El carrito está vacío."}, status=status.HTTP_400_BAD_REQUEST)
+
+        orders = []
+        for item in cart_items:
+            product = item.product
+            if product.stock < item.cantidad:
+                return Response({"detail": f"Stock insuficiente para {product.nombre}."}, status=status.HTTP_400_BAD_REQUEST)
+            product.stock -= item.cantidad
+            product.save()
+            order = Order.objects.create(
+                user=user,
+                product=product,
+                cantidad=item.cantidad,
+                total=product.precio * item.cantidad,
+                # agrega otros campos necesarios aquí
+            )
+            orders.append(order)
+        cart_items.delete()
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

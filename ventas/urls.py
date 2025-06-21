@@ -12,6 +12,7 @@ from .views import CartAddView
 from .views import ProductCreateView, ProductListView
 from .views import OrderPanelView
 from .views import PaymentMethodListView
+from .views import CartCheckoutView
 
 router = routers.DefaultRouter()
 router.register(r'admin', views.AdminView, basename='Admin')
@@ -32,4 +33,5 @@ urlpatterns = [
     path('products/list/', ProductListView.as_view(), name='product-list'),
     path('orders/panel/', OrderPanelView.as_view(), name='order-panel'),
     path('payment-methods/', PaymentMethodListView.as_view(), name='payment-method-list'),
+    path('cart/checkout/', CartCheckoutView.as_view(), name='cart-checkout'),
 ]
