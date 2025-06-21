@@ -15,11 +15,13 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
 from django.urls import path, include 
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
-from django.urls import path
+from django.http import HttpResponse
+
+# def home(request):
+#     return HttpResponse("Bienvenido a la API de SRBUJ 3D")
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -28,4 +30,5 @@ urlpatterns = [
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/user/', include('ventas_user_admin.urls')),
     path('api-token-auth/', obtain_auth_token, name='api_token_auth'),
+    # path('', home),
 ]

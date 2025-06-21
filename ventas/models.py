@@ -16,6 +16,7 @@ class Product(models.Model):
     descripcion = models.TextField(blank=True, null=True)
     precio = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.IntegerField()
+    activo = models.BooleanField(default=True)
 
     def __str__(self):
         return self.nombre
