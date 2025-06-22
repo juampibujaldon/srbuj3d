@@ -36,13 +36,13 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'rest_framework',
     'django.contrib.staticfiles',
     'ventas',
     'corsheaders',
     'drf_spectacular',
     'ventas_user_admin',
-    'rest_framework.authtoken',
+    # 'rest_framework.authtoken', Creo que no es necesario
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
@@ -117,9 +117,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-ar'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Argentina/Buenos_Aires'
 
 USE_I18N = True
 
@@ -136,8 +136,14 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# REST_FRAMEWORK = {
+#      'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+#  }
 REST_FRAMEWORK = {
-     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
- }
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
 
 CORS_ALLOWED_ORIGINS = []

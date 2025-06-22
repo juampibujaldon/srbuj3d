@@ -23,7 +23,6 @@ from .serializer import (
     OrderPanelSerializer,
     WishlistSerializer,
 )
-
 # ------------------- PRODUCTOS -------------------
 
 class ProductCreateView(generics.CreateAPIView):
@@ -270,3 +269,9 @@ class STLModelViewSet(viewsets.ModelViewSet):
 class SellViewSet(viewsets.ModelViewSet):
     queryset = Sell.objects.all()
     serializer_class = SellSerializer
+
+class ProtectedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({'message': f'Hola, {request.user.username}. Estás autenticado con JWT!'})
