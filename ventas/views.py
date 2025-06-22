@@ -242,13 +242,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-from rest_framework import viewsets, permissions
-from .models import Admin, Product, Order, Cart, Payment, STLModel, Sell
-from .serializer import (
-    AdminSerializer, ProductSerializer, OrderSerializer, CartSerializer,
-    PaymentSerializer, STLModelSerializer, SellSerializer
-)
-
 class AdminViewSet(viewsets.ModelViewSet):
     queryset = Admin.objects.all()
     serializer_class = AdminSerializer
