@@ -25,7 +25,7 @@ class CartSerializer(serializers.ModelSerializer):
         
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Payment
+        model = Sell #! Payment
         fields = '__all__'
 
 class STLModelSerializer(serializers.ModelSerializer):
@@ -67,3 +67,9 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaymentMethod
         fields = '__all__'
+
+class WishlistSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Wishlist
+        fields = '__all__'
+        read_only_fields = ['user']

@@ -1,10 +1,16 @@
-from rest_framework import viewsets, generics, permissions, serializers, status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework import viewsets, generics, permissions, serializers, status, filters
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db import transaction
-
-from .models import User, Admin, Product, Order, Cart, Payment, STLModel, Sell, PaymentMethod
+from django.core.mail import send_mail
+from django.http import FileResponse
+from .models import (
+    User, Admin, Product, Order, Cart, Payment, STLModel, Sell, PaymentMethod, Wishlist
+)
+from reportlab.pdfgen import canvas
+from django.http import HttpResponse
+from .models import Order
 from .serializer import (
     AdminSerializer,
     ProductSerializer,
@@ -15,113 +21,56 @@ from .serializer import (
     SellSerializer,
     PaymentMethodSerializer,
     OrderPanelSerializer,
+    WishlistSerializer,
 )
 
-# Crear producto (con stock inicial)
+# ------------------- PRODUCTOS -------------------
+
 class ProductCreateView(generics.CreateAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminUser]
 
-# Leer producto (ver stock)
 class ProductDetailView(generics.RetrieveAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
 
-# Actualizar producto (actualizar stock)
 class ProductUpdateView(generics.UpdateAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminUser]
 
-# Eliminar producto (solo si es seguro)
 class ProductDeleteView(generics.DestroyAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminUser]
 
 class ProductListView(generics.ListAPIView):
     queryset = Product.objects.filter(activo=True)
     serializer_class = ProductSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['nombre', 'descripcion']
+    ordering_fields = ['precio', 'stock']
 
-class OrderCreateView(generics.CreateAPIView):
-    queryset = Order.objects.all()
-    serializer_class = OrderSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def perform_create(self, serializer):
-        product_id = self.request.data.get('product')  # Ajusta el nombre según tu serializer
-        cantidad = int(self.request.data.get('cantidad', 1))
-        product = Product.objects.get(id=product_id)
-        if product.stock >= cantidad:
-            product.stock -= cantidad
-            product.save()
-            serializer.save(user=self.request.user, total=product.precio * cantidad)
-        else:
-            raise serializers.ValidationError("Stock insuficiente")
-        
-class AdminView(viewsets.ModelViewSet):
-    serializer_class = AdminSerializer
-    queryset = Admin.objects.all()
-    permission_classes = [IsAuthenticated]
-
-class ProductView(viewsets.ModelViewSet):
-    serializer_class = ProductSerializer
-    queryset = Product.objects.all()
-    permission_classes = [IsAuthenticated]
-
-class OrderView(viewsets.ModelViewSet):
-    serializer_class = OrderSerializer
-    queryset = Order.objects.all()
-    permission_classes = [IsAuthenticated]
-
-class CartView(viewsets.ModelViewSet):
-    serializer_class = CartSerializer
-    queryset = Cart.objects.all()
-    permission_classes = [IsAuthenticated]
+# ------------------- CARRITO -------------------
 
 class CartAddView(generics.CreateAPIView):
     queryset = Cart.objects.all()
     serializer_class = CartSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
 class CartListView(generics.ListAPIView):
     serializer_class = CartSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return Cart.objects.filter(user=self.request.user)
 
-class PaymentView(viewsets.ModelViewSet):
-    serializer_class = PaymentSerializer
-    queryset = Payment.objects.all()
-    permission_classes = [IsAuthenticated]
-
-class STLModelView(viewsets.ModelViewSet):
-    serializer_class = STLModelSerializer
-    queryset = STLModel.objects.all()
-    permission_classes = [IsAuthenticated]
-
-class SellView(viewsets.ModelViewSet):
-    serializer_class = SellSerializer
-    queryset = Sell.objects.all()
-    permission_classes = [IsAuthenticated]
-
-class OrderPanelView(generics.ListAPIView):
-    queryset = Order.objects.all()
-    serializer_class = OrderPanelSerializer
-    permission_classes = [permissions.IsAdminUser] 
-
-class PaymentMethodListView(generics.ListAPIView):
-    queryset = PaymentMethod.objects.filter(activo=True)
-    serializer_class = PaymentMethodSerializer
-    permission_classes = [permissions.AllowAny]
-
 class CartCheckoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @transaction.atomic
     def post(self, request):
@@ -142,9 +91,189 @@ class CartCheckoutView(APIView):
                 product=product,
                 cantidad=item.cantidad,
                 total=product.precio * item.cantidad,
-                # agrega otros campos necesarios aquí
+                estado='pendiente'
             )
             orders.append(order)
         cart_items.delete()
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+# ------------------- PEDIDOS -------------------
+
+class UserOrderHistoryView(generics.ListAPIView):
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        return Order.objects.filter(user=self.request.user)
+
+class OrderPanelView(generics.ListAPIView):
+    queryset = Order.objects.all()
+    serializer_class = OrderPanelSerializer
+    permission_classes = [IsAdminUser]
+
+class OrderStatusUpdateView(generics.UpdateAPIView):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request, *args, **kwargs):
+        response = self.partial_update(request, *args, **kwargs)
+        # Notificación por email al usuario
+        order = self.get_object()
+        send_mail(
+            'Estado de tu pedido actualizado',
+            f'Tu pedido #{order.id} ahora está en estado: {order.estado}',
+            'no-reply@tuapp.com',
+            [order.user.email],
+        )
+        return response
+
+class OrderTrackingView(generics.RetrieveAPIView):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+
+# ------------------- WISHLIST -------------------
+
+class WishlistAddView(generics.CreateAPIView):
+    serializer_class = WishlistSerializer
+    permission_classes = [IsAuthenticated]
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+class WishlistListView(generics.ListAPIView):
+    serializer_class = WishlistSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        return Wishlist.objects.filter(user=self.request.user)
+
+# ------------------- MÉTODOS DE PAGO -------------------
+
+class PaymentMethodListView(generics.ListAPIView):
+    queryset = PaymentMethod.objects.filter(activo=True)
+    serializer_class = PaymentMethodSerializer
+    permission_classes = [permissions.AllowAny]
+
+# ------------------- DASHBOARD ADMIN -------------------
+
+class SalesDashboardView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request):
+        total_ventas = Order.objects.count()
+        total_ingresos = Order.objects.aggregate(serializers.Sum('total'))['total__sum'] or 0
+        productos_mas_vendidos = Product.objects.order_by('-order__cantidad')[:5]
+        return Response({
+            "total_ventas": total_ventas,
+            "total_ingresos": total_ingresos,
+            "productos_mas_vendidos": [p.nombre for p in productos_mas_vendidos],
+        })
+
+# ------------------- RECOMENDACIONES -------------------
+
+class ProductRecommendationView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        productos = Product.objects.order_by('-order__cantidad')[:5]
+        serializer = ProductSerializer(productos, many=True)
+        return Response(serializer.data)
+
+# ------------------- FACTURA PDF (ejemplo simple) -------------------
+
+def generate_invoice(request, order_id):
+    order = Order.objects.get(pk=order_id)
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="factura_{order_id}.pdf"'
+
+    p = canvas.Canvas(response)
+    p.drawString(100, 800, f"Factura para pedido #{order.id}")
+    p.drawString(100, 780, f"Cliente: {order.user.get_full_name()}")
+    p.drawString(100, 760, f"Producto: {order.product.nombre}")
+    p.drawString(100, 740, f"Cantidad: {order.cantidad}")
+    p.drawString(100, 720, f"Total: ${order.total}")
+    # ...agrega más datos según tu modelo...
+    p.showPage()
+    p.save()
+    return response
+
+# ------------------- MERCADOPAGO (ejemplo simple) -------------------
+import mercadopago
+class MercadoPagoInitView(APIView):
+    def post(self, request):
+        sdk = mercadopago.SDK("TU_ACCESS_TOKEN")   #! ver esto bien
+        preference_data = {
+            "items": [
+                 {
+                     "title": "Producto",
+                     "quantity": 1,
+                     "unit_price": 100
+                 }
+            ]
+        }
+        preference_response = sdk.preference().create(preference_data)
+        return Response(preference_response["response"])
+    
+class AdminView(viewsets.ModelViewSet):
+    queryset = Admin.objects.all()
+    serializer_class = AdminSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+    
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+class OrderViewSet(viewsets.ModelViewSet):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+    permission_classes = [permissions.IsAdminUser] 
+class CartViewSet(viewsets.ModelViewSet):
+    queryset = Cart.objects.all()
+    serializer_class = CartSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+class PaymentViewSet(viewsets.ModelViewSet):
+    queryset = Payment.objects.all()
+    serializer_class = PaymentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+from rest_framework import viewsets, permissions
+from .models import Admin, Product, Order, Cart, Payment, STLModel, Sell
+from .serializer import (
+    AdminSerializer, ProductSerializer, OrderSerializer, CartSerializer,
+    PaymentSerializer, STLModelSerializer, SellSerializer
+)
+
+class AdminViewSet(viewsets.ModelViewSet):
+    queryset = Admin.objects.all()
+    serializer_class = AdminSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+
+class OrderViewSet(viewsets.ModelViewSet):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+
+class CartViewSet(viewsets.ModelViewSet):
+    queryset = Cart.objects.all()
+    serializer_class = CartSerializer
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    queryset = Payment.objects.all()
+    serializer_class = PaymentSerializer
+
+class STLModelViewSet(viewsets.ModelViewSet):
+    queryset = STLModel.objects.all()
+    serializer_class = STLModelSerializer
+
+class SellViewSet(viewsets.ModelViewSet):
+    queryset = Sell.objects.all()
+    serializer_class = SellSerializer
