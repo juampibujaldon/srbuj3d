@@ -15,27 +15,40 @@ class Product(models.Model):
     nombre = models.CharField(max_length=255)
     descripcion = models.TextField(blank=True, null=True)
     precio = models.DecimalField(max_digits=10, decimal_places=2)
-    stock = models.IntegerField()
+    stock = models.IntegerField(default=0)
+    autor = models.CharField(max_length=255, blank=True, default="SrBuj")
+    categoria = models.CharField(max_length=120, blank=True, default="General")
+    imagen_url = models.URLField(blank=True, null=True)
+    imagen = models.ImageField(upload_to="products/", blank=True, null=True)
+    likes = models.PositiveIntegerField(default=0)
+    downloads = models.PositiveIntegerField(default=0)
+    peso_gr = models.PositiveIntegerField(default=300)
 
     def __str__(self):
         return self.nombre
 
 class Order(models.Model):
     ESTADO_CHOICES = [
-        ('pendiente', 'Pendiente'),
-        ('procesando', 'Procesando'),
-        ('enviado', 'Enviado'),
-        ('entregado', 'Entregado'),
-        ('cancelado', 'Cancelado'),
+        ("pendiente", "Pendiente"),
+        ("procesando", "Procesando"),
+        ("enviado", "Enviado"),
+        ("entregado", "Entregado"),
+        ("cancelado", "Cancelado"),
     ]
-    
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    fecha = models.DateField(auto_now_add=True)
-    total = models.DecimalField(max_digits=10, decimal_places=2)
-    estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='pendiente')
+
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    fecha = models.DateTimeField(auto_now_add=True)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default="pendiente")
+    items = models.JSONField(default=list, blank=True)
+    shipping = models.JSONField(default=dict, blank=True)
+    shipping_quote = models.JSONField(default=dict, blank=True)
+    payment_info = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
-        return f'Pedido {self.id} - {self.usuario.nombre}'
+        nombre = self.user.username if self.user else self.shipping.get("nombre", "")
+        return f"Pedido {self.id} - {nombre}".strip()
 
 class Cart(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -43,7 +56,7 @@ class Cart(models.Model):
     cantidad = models.PositiveIntegerField()
 
     def __str__(self):
-        return f'{self.cantidad} x {self.producto.nombre} - {self.usuario.nombre}'
+        return f"{self.cantidad} x {self.product.nombre}"
 
 class Payment(models.Model):
     METODO_CHOICES = [
@@ -65,7 +78,7 @@ class Payment(models.Model):
     estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='pendiente')
 
     def __str__(self):
-        return f'Pago {self.id} - {self.pedido.id} ({self.estado})'
+        return f"Pago {self.id} - {self.order_id} ({self.estado})"
 
 class STLModel(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -83,5 +96,5 @@ class Sell(models.Model):
     fecha = models.DateField(auto_now_add=True)
     total = models.DecimalField(max_digits=10, decimal_places=2)
     def __str__(self):
-        return f'Venta {self.id} - {self.producto.nombre} ({self.cantidad})'
+        return f"Venta {self.id} - {self.product.nombre} ({self.cantidad})"
         
