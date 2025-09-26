@@ -22,5 +22,6 @@ urlpatterns = [
     path('ordenes/admin', views.OrderListView.as_view(), name='ordenes-admin'),
     path('ordenes/<int:pk>/estado', views.OrderStatusUpdateView.as_view(), name='ordenes-estado'),
     path('dashboard/resumen', views.dashboard_resumen, name='dashboard-resumen'),
+    path('personalizador/cotizar-stl', views.STLQuoteView.as_view(), name='cotizar-stl'),
 
 ]

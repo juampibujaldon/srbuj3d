@@ -23,6 +23,7 @@ class ProductPublicSerializer(serializers.ModelSerializer):
     img = serializers.SerializerMethodField()
     author = serializers.CharField(source="autor", allow_blank=True, required=False)
     weightGr = serializers.IntegerField(source="peso_gr", required=False)
+    featured = serializers.BooleanField(source="mostrar_inicio", required=False)
 
     class Meta:
         model = Product
@@ -38,6 +39,7 @@ class ProductPublicSerializer(serializers.ModelSerializer):
             "downloads",
             "weightGr",
             "categoria",
+            "featured",
         ]
 
     def get_price(self, obj):

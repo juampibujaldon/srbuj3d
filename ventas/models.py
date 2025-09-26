@@ -23,6 +23,7 @@ class Product(models.Model):
     likes = models.PositiveIntegerField(default=0)
     downloads = models.PositiveIntegerField(default=0)
     peso_gr = models.PositiveIntegerField(default=300)
+    mostrar_inicio = models.BooleanField(default=True)
 
     def __str__(self):
         return self.nombre

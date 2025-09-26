@@ -82,7 +82,8 @@ WSGI_APPLICATION = 'srbuj_3d.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-#ENGINE': 'django.db.backends.mysql',
+
+default_db_engine = os.getenv('DB_ENGINE') or 'django.db.backends.mysql'
 
 DATABASES = {
     'default': {
@@ -94,9 +95,6 @@ DATABASES = {
         'PORT': '3306',
     }
 }
-
-# Password validation
-# https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
