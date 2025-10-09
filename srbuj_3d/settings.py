@@ -142,6 +142,11 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_RATES': {
+        'order_file_upload': '5/min',
+        'shipping_quote': '20/min',
+        'shipping_quote_anon': '10/min',
+    },
 }
 
 CORS_ALLOWED_ORIGINS = [

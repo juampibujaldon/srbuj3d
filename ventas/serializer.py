@@ -1,10 +1,26 @@
+from decimal import Decimal
+
 from rest_framework import serializers
-from .models import *
+
+from .models import (
+    Admin,
+    Cart,
+    FeatureFlag,
+    Order,
+    OrderFile,
+    OrderItem,
+    Payment,
+    Product,
+    STLModel,
+    Sell,
+)
+
 
 class AdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = Admin
-        fields = '__all__'
+        fields = "__all__"
+
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
@@ -35,8 +51,6 @@ class ProductPublicSerializer(serializers.ModelSerializer):
             "price",
             "desc",
             "stock",
-            "likes",
-            "downloads",
             "weightGr",
             "categoria",
             "featured",
@@ -54,85 +68,234 @@ class ProductPublicSerializer(serializers.ModelSerializer):
             return url
         return obj.imagen_url or ""
 
-class OrderSerializer(serializers.ModelSerializer):
+
+class ProductMiniSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Order
-        fields = "__all__"
+        model = Product
+        fields = ["id", "nombre", "precio", "imagen_url"]
+
+    nombre = serializers.CharField(read_only=True)
+    precio = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
 
-class OrderPublicSerializer(serializers.ModelSerializer):
-    total = serializers.SerializerMethodField()
-    subtotal = serializers.SerializerMethodField()
+class OrderItemSerializer(serializers.ModelSerializer):
+    product_id = serializers.PrimaryKeyRelatedField(
+        source="product",
+        queryset=Product.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+    product = ProductMiniSerializer(read_only=True)
+    line_total = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrderItem
+        fields = [
+            "id",
+            "product",
+            "product_id",
+            "title",
+            "sku",
+            "quantity",
+            "unit_price",
+            "metadata",
+            "line_total",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "product", "line_total", "created_at", "updated_at"]
+
+    def get_line_total(self, obj):
+        return float(obj.unit_price * obj.quantity)
+
+
+class OrderFileSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+    uploaded_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrderFile
+        fields = [
+            "id",
+            "original_name",
+            "file",
+            "file_url",
+            "preview_url",
+            "notes",
+            "uploaded_by",
+            "uploaded_by_name",
+            "uploaded_ip",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "file",
+            "file_url",
+            "uploaded_by",
+            "uploaded_by_name",
+            "uploaded_ip",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_file_url(self, obj):
+        request = self.context.get("request") if hasattr(self, "context") else None
+        if request:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url
+
+    def get_uploaded_by_name(self, obj):
+        if obj.uploaded_by:
+            return obj.uploaded_by.get_full_name() or obj.uploaded_by.username
+        return ""
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True, required=False)
+    files = OrderFileSerializer(many=True, read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
     customer = serializers.SerializerMethodField()
-    email = serializers.SerializerMethodField()
-    items = serializers.SerializerMethodField()
-    payment = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = [
             "id",
-            "fecha",
-            "estado",
+            "user",
+            "status",
+            "status_display",
+            "subtotal",
+            "shipping_cost",
+            "total",
+            "shipping_address",
+            "billing_address",
+            "shipping_quote",
+            "payment_metadata",
+            "submitted_at",
+            "paid_at",
+            "cancelled_at",
+            "fulfilled_at",
+            "notes",
+            "items",
+            "files",
+            "customer",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
             "subtotal",
             "total",
-            "items",
+            "submitted_at",
+            "paid_at",
+            "cancelled_at",
+            "fulfilled_at",
+            "created_at",
+            "updated_at",
+            "status_display",
             "customer",
-            "email",
-            "shipping",
-            "shipping_quote",
-            "payment",
         ]
 
-    def get_total(self, obj):
-        return float(obj.total)
-
-    def get_subtotal(self, obj):
-        return float(obj.subtotal)
-
     def get_customer(self, obj):
-        if obj.user and obj.user.get_full_name():
-            return obj.user.get_full_name()
-        if obj.shipping:
-            return obj.shipping.get("nombre") or obj.shipping.get("email")
-        return obj.user.username if obj.user else ""
+        return obj.get_customer_name()
 
-    def get_email(self, obj):
-        if obj.shipping:
-            return obj.shipping.get("email", "")
-        if obj.user:
-            return obj.user.email
-        return ""
+    def create(self, validated_data):
+        items_data = validated_data.pop("items", [])
+        order = Order.objects.create(**validated_data)
+        self._upsert_items(order, items_data)
+        order.refresh_amounts()
+        return order
 
-    def get_items(self, obj):
-        return obj.items or []
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop("items", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if items_data is not None:
+            instance.items.all().delete()
+            self._upsert_items(instance, items_data)
+        instance.refresh_amounts()
+        return instance
 
-    def get_payment(self, obj):
-        return obj.payment_info or {}
+    def _upsert_items(self, order, items_data):
+        for payload in items_data:
+            product = payload.get("product")
+            quantity_raw = payload.get("quantity") or 1
+            try:
+                quantity = max(1, int(quantity_raw))
+            except (TypeError, ValueError):
+                quantity = 1
+            try:
+                unit_price = Decimal(str(payload.get("unit_price") or 0))
+            except (TypeError, ValueError, ArithmeticError):
+                unit_price = Decimal("0")
+
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                title=payload.get("title") or "",
+                sku=payload.get("sku") or "",
+                quantity=quantity,
+                unit_price=unit_price,
+                metadata=payload.get("metadata") or {},
+            )
+
+
+class OrderListSerializer(OrderSerializer):
+    class Meta(OrderSerializer.Meta):
+        fields = [
+            "id",
+            "status",
+            "status_display",
+            "subtotal",
+            "shipping_cost",
+            "total",
+            "submitted_at",
+            "paid_at",
+            "fulfilled_at",
+            "cancelled_at",
+            "customer",
+            "shipping_address",
+            "shipping_quote",
+            "created_at",
+            "updated_at",
+            "items",
+            "files",
+        ]
+
 
 class CartSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cart
-        fields = '__all__'
+        fields = "__all__"
+
 
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = '__all__'
+        fields = "__all__"
+
 
 class STLModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = STLModel
-        fields = '__all__'
+        fields = "__all__"
 
 
 class SellSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sell
-        fields = '__all__'
+        fields = "__all__"
 
 
 class OrderStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
-        fields = ["estado"]
+        fields = ["status"]
+
+
+class FeatureFlagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FeatureFlag
+        fields = ["id", "key", "enabled", "description", "updated_at"]
+        read_only_fields = ["id", "updated_at", "description"]
