@@ -11,9 +11,43 @@ from .models import (
     OrderItem,
     Payment,
     Product,
+    ProductImage,
     STLModel,
     Sell,
 )
+
+
+def _build_product_gallery(obj, request=None):
+    urls = []
+
+    def add(url):
+        if not url:
+            return
+        if request:
+            if url.startswith(("http://", "https://")):
+                absolute = url
+            else:
+                absolute = request.build_absolute_uri(url)
+        else:
+            absolute = url
+        if absolute and absolute not in urls:
+            urls.append(absolute)
+
+    gallery_manager = getattr(obj, "gallery", None)
+    if gallery_manager is not None:
+        for image in gallery_manager.all():
+            if isinstance(image, ProductImage):
+                if image.image:
+                    add(image.image.url)
+                if image.image_url:
+                    add(image.image_url)
+
+    if getattr(obj, "imagen", None):
+        add(obj.imagen.url)
+    if getattr(obj, "imagen_url", None):
+        add(obj.imagen_url)
+
+    return urls
 
 
 class AdminSerializer(serializers.ModelSerializer):
@@ -23,6 +57,8 @@ class AdminSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
+    gallery = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
         fields = "__all__"
@@ -30,6 +66,11 @@ class ProductSerializer(serializers.ModelSerializer):
             "imagen": {"required": False, "allow_null": True},
             "imagen_url": {"required": False, "allow_blank": True},
         }
+        read_only_fields = ["gallery"]
+
+    def get_gallery(self, obj):
+        request = self.context.get("request") if hasattr(self, "context") else None
+        return _build_product_gallery(obj, request)
 
 
 class ProductPublicSerializer(serializers.ModelSerializer):
@@ -37,6 +78,7 @@ class ProductPublicSerializer(serializers.ModelSerializer):
     desc = serializers.CharField(source="descripcion", allow_blank=True, required=False)
     price = serializers.SerializerMethodField()
     img = serializers.SerializerMethodField()
+    gallery = serializers.SerializerMethodField()
     author = serializers.CharField(source="autor", allow_blank=True, required=False)
     weightGr = serializers.IntegerField(source="peso_gr", required=False)
     featured = serializers.BooleanField(source="mostrar_inicio", required=False)
@@ -48,6 +90,7 @@ class ProductPublicSerializer(serializers.ModelSerializer):
             "title",
             "author",
             "img",
+            "gallery",
             "price",
             "desc",
             "stock",
@@ -61,12 +104,14 @@ class ProductPublicSerializer(serializers.ModelSerializer):
 
     def get_img(self, obj):
         request = self.context.get("request") if hasattr(self, "context") else None
-        if getattr(obj, "imagen", None):
-            url = obj.imagen.url
-            if request:
-                return request.build_absolute_uri(url)
-            return url
-        return obj.imagen_url or ""
+        gallery = _build_product_gallery(obj, request)
+        if gallery:
+            return gallery[0]
+        return ""
+
+    def get_gallery(self, obj):
+        request = self.context.get("request") if hasattr(self, "context") else None
+        return _build_product_gallery(obj, request)
 
 
 class ProductMiniSerializer(serializers.ModelSerializer):

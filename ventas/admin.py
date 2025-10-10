@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils.html import format_html
 
 from .models import (
     Admin,
@@ -9,6 +10,7 @@ from .models import (
     OrderItem,
     Payment,
     Product,
+    ProductImage,
     STLModel,
     Sell,
 )
@@ -35,8 +37,31 @@ class OrderAdmin(admin.ModelAdmin):
     inlines = [OrderItemInline, OrderFileInline]
 
 
+class ProductImageInline(admin.TabularInline):
+    model = ProductImage
+    extra = 0
+    fields = ("preview", "image", "image_url", "position")
+    readonly_fields = ("preview",)
+
+    def preview(self, instance):
+        if instance.image:
+            return format_html('<img src="{}" style="max-height:80px;"/>', instance.image.url)
+        if instance.image_url:
+            return format_html('<img src="{}" style="max-height:80px;"/>', instance.image_url)
+        return "—"
+
+    preview.short_description = "Vista previa"
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ("id", "nombre", "categoria", "precio", "stock", "mostrar_inicio")
+    list_filter = ("categoria", "mostrar_inicio")
+    search_fields = ("nombre", "autor", "categoria")
+    inlines = [ProductImageInline]
+
+
 admin.site.register(Admin)
-admin.site.register(Product)
 admin.site.register(Cart)
 admin.site.register(Payment)
 admin.site.register(STLModel)

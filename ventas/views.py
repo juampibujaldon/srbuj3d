@@ -18,7 +18,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Admin, Cart, FeatureFlag, Order, OrderFile, Payment, Product, STLModel, Sell, User
+from .models import Admin, Cart, FeatureFlag, Order, OrderFile, Payment, Product, ProductImage, STLModel, Sell, User
 
 
 logger = logging.getLogger(__name__)
@@ -44,8 +44,22 @@ class AdminView(viewsets.ModelViewSet):
 
 class ProductView(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
-    queryset = Product.objects.all()
+    queryset = Product.objects.prefetch_related("gallery").all()
     permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        _require_admin(self.request.user)
+        product = serializer.save()
+        files, urls, clear = _extract_gallery_payload(self.request)
+        if files or urls or clear:
+            _sync_product_gallery(product, files, urls, clear=True)
+
+    def perform_update(self, serializer):
+        _require_admin(self.request.user)
+        product = serializer.save()
+        files, urls, clear = _extract_gallery_payload(self.request)
+        if clear or files or urls:
+            _sync_product_gallery(product, files, urls, clear=clear)
 
 
 def _is_admin(user):
@@ -149,6 +163,41 @@ SAMPLE_PRODUCTS = [
 ]
 
 
+def _extract_gallery_payload(request):
+    files = request.FILES.getlist("gallery") if hasattr(request.FILES, "getlist") else []
+    raw_urls = []
+    data = request.data
+    if hasattr(data, "getlist"):
+        raw_urls = data.getlist("gallery_urls")
+    else:
+        value = data.get("gallery_urls")
+        if isinstance(value, (list, tuple)):
+            raw_urls = value
+        elif isinstance(value, str):
+            raw_urls = [value]
+    urls = [str(url).strip() for url in raw_urls if str(url).strip()]
+    clear_flag = str(data.get("clear_gallery", "")).lower() in {"1", "true", "yes", "on"}
+    return files, urls, clear_flag
+
+
+def _sync_product_gallery(product, files, urls, *, clear=False):
+    gallery_manager = product.gallery
+
+    if clear:
+        gallery_manager.all().delete()
+        position = 0
+    else:
+        position = gallery_manager.count()
+
+    for file in files:
+        ProductImage.objects.create(product=product, image=file, position=position)
+        position += 1
+
+    for url in urls:
+        ProductImage.objects.create(product=product, image_url=url, position=position)
+        position += 1
+
+
 def _ensure_seed_data():
     if not Product.objects.exists():
         Product.objects.bulk_create(Product(**data) for data in SAMPLE_PRODUCTS)
@@ -203,7 +252,7 @@ def _obtener_token_andreani():
 
 
 class ProductListCreateView(generics.ListCreateAPIView):
-    queryset = Product.objects.all().order_by("id")
+    queryset = Product.objects.prefetch_related("gallery").all().order_by("id")
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_serializer_class(self):
@@ -224,11 +273,14 @@ class ProductListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         _require_admin(self.request.user)
-        serializer.save()
+        product = serializer.save()
+        files, urls, clear = _extract_gallery_payload(self.request)
+        if files or urls or clear:
+            _sync_product_gallery(product, files, urls, clear=True)
 
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Product.objects.all()
+    queryset = Product.objects.prefetch_related("gallery").all()
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_serializer_class(self):
@@ -249,7 +301,10 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         _require_admin(self.request.user)
-        serializer.save()
+        product = serializer.save()
+        files, urls, clear = _extract_gallery_payload(self.request)
+        if clear or files or urls:
+            _sync_product_gallery(product, files, urls, clear=clear)
 
     def perform_destroy(self, instance):
         _require_admin(self.request.user)

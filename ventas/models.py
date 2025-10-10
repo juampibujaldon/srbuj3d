@@ -35,6 +35,24 @@ class Product(models.Model):
     def __str__(self):
         return self.nombre
 
+
+class ProductImage(models.Model):
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="gallery",
+    )
+    image = models.ImageField(upload_to="products/gallery/", blank=True, null=True)
+    image_url = models.URLField(blank=True, null=True)
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["position", "id"]
+
+    def __str__(self):
+        return f"Imagen de {self.product.nombre} ({self.id})"
+
 class Order(TimeStampedModel):
     """Represents a printable order tied to a customer and printable files."""
 
