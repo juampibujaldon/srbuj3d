@@ -1,4 +1,8 @@
+from decimal import Decimal
+
+from django.core.validators import MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 from ventas_user_admin.models import User
 
@@ -265,4 +269,166 @@ class Sell(models.Model):
     total = models.DecimalField(max_digits=10, decimal_places=2)
     def __str__(self):
         return f"Venta {self.id} - {self.product.nombre} ({self.cantidad})"
-        
+
+
+class Filament(TimeStampedModel):
+    """Representa un filamento o lote de material controlado en stock."""
+
+    external_id = models.CharField(
+        max_length=120,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Identificador amigable opcional usado por la interfaz.",
+    )
+    sku = models.CharField(max_length=120, unique=True)
+    material = models.CharField(max_length=120)
+    color = models.CharField(max_length=120)
+    diameter = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=Decimal("1.75"),
+        validators=[MinValueValidator(Decimal("0.10"))],
+    )
+    grams_available = models.PositiveIntegerField(default=0)
+    grams_reserved = models.PositiveIntegerField(default=0)
+    reorder_point_grams = models.PositiveIntegerField(default=0)
+    grams_per_unit = models.PositiveIntegerField(
+        default=0,
+        help_text="Consumo estimado por pieza en gramos.",
+    )
+    est_print_min_per_unit = models.PositiveIntegerField(
+        default=0,
+        help_text="Tiempo estimado por pieza en minutos.",
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["material", "color", "sku"]
+
+    def __str__(self):
+        return f"{self.sku} ({self.material} {self.color})"
+
+    @property
+    def free_grams(self) -> int:
+        return max(self.grams_available - self.grams_reserved, 0)
+
+    def adjust(self, delta: int, commit: bool = True):
+        new_total = int(self.grams_available) + int(delta)
+        if new_total < self.grams_reserved:
+            raise ValueError("No podés dejar el stock por debajo de las reservas")
+        self.grams_available = max(new_total, 0)
+        if commit:
+            self.save(update_fields=["grams_available", "updated_at"])
+
+
+class Machine(TimeStampedModel):
+    """Representa una impresora o máquina con una cola de trabajos."""
+
+    STATUS_ONLINE = "online"
+    STATUS_MAINTENANCE = "maintenance"
+    STATUS_OFFLINE = "offline"
+
+    STATUS_CHOICES = [
+        (STATUS_ONLINE, "online"),
+        (STATUS_MAINTENANCE, "maintenance"),
+        (STATUS_OFFLINE, "offline"),
+    ]
+
+    identifier = models.CharField(
+        max_length=120,
+        unique=True,
+        help_text="Identificador legible usado por el panel.",
+    )
+    name = models.CharField(max_length=255)
+    model = models.CharField(max_length=255, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_ONLINE,
+    )
+    nozzle = models.CharField(max_length=20, blank=True)
+    avg_speed_factor = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("1.00"),
+        validators=[MinValueValidator(Decimal("0.10"))],
+    )
+    maintenance_every_hours = models.PositiveIntegerField(default=120)
+    maintenance_hours_used = models.PositiveIntegerField(default=0)
+    last_maintenance_at = models.DateTimeField(blank=True, null=True)
+    compatible_materials = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["identifier"]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def queue_eta_minutes(self) -> int:
+        return sum(job.effective_minutes for job in self.jobs.all())
+
+    def register_maintenance(self, commit: bool = True):
+        self.maintenance_hours_used = 0
+        self.last_maintenance_at = timezone.now()
+        if commit:
+            self.save(update_fields=["maintenance_hours_used", "last_maintenance_at", "updated_at"])
+
+    def maintenance_ratio(self) -> float:
+        if not self.maintenance_every_hours:
+            return 0
+        return self.maintenance_hours_used / self.maintenance_every_hours
+
+
+class MachineJob(TimeStampedModel):
+    """Trabajo individual asignado a una máquina."""
+
+    machine = models.ForeignKey(
+        Machine,
+        on_delete=models.CASCADE,
+        related_name="jobs",
+    )
+    sku = models.CharField(max_length=120, blank=True)
+    title = models.CharField(max_length=255, blank=True)
+    quantity = models.PositiveIntegerField(default=1)
+    est_minutes_per_unit = models.PositiveIntegerField(default=0)
+    remaining_minutes = models.PositiveIntegerField(default=0)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["position", "id"]
+
+    def __str__(self):
+        return f"{self.machine.identifier} - {self.sku or 'job'} ({self.quantity})"
+
+    @property
+    def effective_minutes(self) -> int:
+        value = self.remaining_minutes or 0
+        if value <= 0 and self.est_minutes_per_unit:
+            value = self.est_minutes_per_unit * max(self.quantity, 1)
+        return max(value, 0)
+
+
+class FilamentReservation(TimeStampedModel):
+    """Reserva de gramos de filamento ligada a un pedido."""
+
+    order_id = models.CharField(max_length=64)
+    filament = models.ForeignKey(
+        Filament,
+        on_delete=models.CASCADE,
+        related_name="reservations",
+    )
+    grams = models.PositiveIntegerField()
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["order_id", "filament"],
+                name="unique_reservation_per_filament_and_order",
+            )
+        ]
+
+    def __str__(self):
+        return f"Reserva {self.order_id} - {self.filament.sku} ({self.grams}g)"

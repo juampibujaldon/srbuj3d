@@ -28,5 +28,18 @@ urlpatterns = [
     path('payments/confirm', views.PaymentConfirmView.as_view(), name='payment-confirm'),
     path('dashboard/resumen', views.dashboard_resumen, name='dashboard-resumen'),
     path('personalizador/cotizar-stl', views.STLQuoteView.as_view(), name='cotizar-stl'),
+    path('stock', views.StockSnapshotView.as_view(), name='stock-snapshot'),
+    path('stock/filaments', views.FilamentCollectionView.as_view(), name='stock-filaments'),
+    path('stock/filaments/<str:identifier>', views.FilamentDetailView.as_view(), name='stock-filament-detail'),
+    path('stock/filaments/<str:identifier>/adjust', views.FilamentAdjustView.as_view(), name='stock-filament-adjust'),
+    path('stock/machines', views.MachineCollectionView.as_view(), name='stock-machines'),
+    path('stock/machines/<str:identifier>', views.MachineDetailView.as_view(), name='stock-machine-detail'),
+    path('stock/machines/<str:identifier>/maintenance', views.MachineMaintenanceView.as_view(), name='stock-machine-maintenance'),
+    path('stock/machines/<str:identifier>/jobs/<int:job_id>/move', views.MachineJobMoveView.as_view(), name='stock-machine-job-move'),
+    path('stock/machines/<str:identifier>/jobs/<int:job_id>/position', views.MachineJobPositionView.as_view(), name='stock-machine-job-position'),
+    path('stock/reservations', views.ReservationView.as_view(), name='stock-reservation'),
+    path('stock/reservations/<str:order_id>/consume', views.ReservationConsumeView.as_view(), name='stock-reservation-consume'),
+    path('stock/reservations/<str:order_id>/release', views.ReservationReleaseView.as_view(), name='stock-reservation-release'),
+    path('stock/atp/<str:sku>', views.AvailableToPromiseView.as_view(), name='stock-atp'),
 
 ]

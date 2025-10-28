@@ -7,6 +7,7 @@ from decimal import Decimal
 import requests
 from django.db import transaction
 from django.db.models import Sum
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework import generics, mixins, status, viewsets
@@ -18,7 +19,23 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Admin, Cart, FeatureFlag, Order, OrderFile, Payment, Product, ProductImage, STLModel, Sell, User
+from .models import (
+    Admin,
+    Cart,
+    FeatureFlag,
+    Filament,
+    FilamentReservation,
+    Machine,
+    MachineJob,
+    Order,
+    OrderFile,
+    Payment,
+    Product,
+    ProductImage,
+    STLModel,
+    Sell,
+    User,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -34,6 +51,9 @@ from .serializer import (
     STLModelSerializer,
     SellSerializer,
     FeatureFlagSerializer,
+    FilamentSnapshotSerializer,
+    MachineSnapshotSerializer,
+    FilamentReservationSerializer,
 )
 from .throttles import FileUploadRateThrottle, ShippingQuoteAnonRateThrottle, ShippingQuoteRateThrottle
 
@@ -930,3 +950,521 @@ def dashboard_resumen(request):
     }
 
     return Response(response)
+
+
+# --- Helpers para el módulo de stock ------------------------------------------------------------
+
+
+def _parse_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_decimal(value, default="0"):
+    try:
+        return Decimal(str(value))
+    except (TypeError, ValueError, ArithmeticError):
+        return Decimal(default)
+
+
+def _get_filament(identifier):
+    if identifier is None:
+        raise Filament.DoesNotExist
+    try:
+        return Filament.objects.get(external_id=identifier)
+    except Filament.DoesNotExist:
+        try:
+            return Filament.objects.get(pk=int(identifier))
+        except (Filament.DoesNotExist, ValueError, TypeError):
+            raise Filament.DoesNotExist from None
+
+
+def _get_machine(identifier):
+    if identifier is None:
+        raise Machine.DoesNotExist
+    try:
+        return Machine.objects.get(identifier=identifier)
+    except Machine.DoesNotExist:
+        try:
+            return Machine.objects.get(pk=int(identifier))
+        except (Machine.DoesNotExist, ValueError, TypeError):
+            raise Machine.DoesNotExist from None
+
+
+def _reindex_jobs(machine):
+    for idx, job in enumerate(machine.jobs.order_by("position", "id")):
+        if job.position != idx:
+            job.position = idx
+            job.save(update_fields=["position"])
+
+
+def _machine_alerts(machine, maintenance_threshold):
+    alerts = []
+    if machine.status == Machine.STATUS_MAINTENANCE:
+        alerts.append(
+            {
+                "type": "maintenance",
+                "message": f"{machine.name}: en mantenimiento",
+            }
+        )
+    if machine.maintenance_ratio() >= maintenance_threshold:
+        alerts.append(
+            {
+                "type": "maintenance",
+                "message": f"{machine.name}: mantenimiento pendiente",
+            }
+        )
+    return alerts
+
+
+def _filament_alerts(filament):
+    if filament.free_grams <= filament.reorder_point_grams:
+        return [
+            {
+                "type": "stock",
+                "message": f"{filament.sku}: stock bajo ({filament.free_grams} g)",
+            }
+        ]
+    return []
+
+
+def _build_stock_alerts(filaments, machines, maintenance_threshold):
+    alerts = []
+    for filament in filaments:
+        alerts.extend(_filament_alerts(filament))
+    for machine in machines:
+        alerts.extend(_machine_alerts(machine, maintenance_threshold))
+    return alerts
+
+
+def _normalize_materials(value):
+    if isinstance(value, (list, tuple)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [part.strip() for part in value.split(",") if part.strip()]
+    return []
+
+
+def _default_print_minutes(filament):
+    estimate = filament.est_print_min_per_unit or 0
+    if estimate <= 0:
+        return 30
+    return estimate
+
+
+class StockSnapshotView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        _require_admin(request.user)
+        filaments = Filament.objects.all().order_by("material", "color", "sku")
+        machines = Machine.objects.prefetch_related("jobs").order_by("identifier")
+        data = {
+            "filaments": FilamentSnapshotSerializer(filaments, many=True).data,
+            "machines": MachineSnapshotSerializer(machines, many=True).data,
+            "alerts": _build_stock_alerts(
+                filaments,
+                machines,
+                maintenance_threshold=0.9,
+            ),
+        }
+        return Response(data)
+
+
+class FilamentCollectionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        _require_admin(request.user)
+        payload = request.data or {}
+        sku = (payload.get("sku") or "").strip().upper()
+        material = (payload.get("material") or "").strip()
+        color = (payload.get("color") or "").strip()
+
+        if not sku or not material or not color:
+            raise ValidationError("Completá SKU, material y color para agregar el filamento.")
+
+        grams_available = _parse_int(payload.get("gramsAvailable") or payload.get("grams_available"))
+        grams_reserved = _parse_int(payload.get("gramsReserved") or payload.get("grams_reserved"))
+        reorder_point = _parse_int(payload.get("reorderPointGrams") or payload.get("reorder_point_grams"))
+        grams_per_unit = _parse_int(payload.get("gramsPerUnit") or payload.get("grams_per_unit"))
+        est_minutes = _parse_int(payload.get("estPrintMinPerUnit") or payload.get("est_print_min_per_unit"))
+        external_id = (payload.get("id") or payload.get("externalId") or "").strip() or None
+
+        if grams_reserved > grams_available:
+            raise ValidationError("El reservado no puede superar al disponible.")
+
+        diameter_raw = payload.get("diameter")
+        diameter = _parse_decimal(diameter_raw or "1.75", default="1.75")
+        if diameter <= 0:
+            diameter = Decimal("1.75")
+
+        notes = (payload.get("notes") or "").strip()
+
+        with transaction.atomic():
+            filament = Filament.objects.create(
+                external_id=external_id,
+                sku=sku,
+                material=material,
+                color=color,
+                diameter=diameter,
+                grams_available=max(grams_available, 0),
+                grams_reserved=max(grams_reserved, 0),
+                reorder_point_grams=max(reorder_point, 0),
+                grams_per_unit=max(grams_per_unit, 0),
+                est_print_min_per_unit=max(est_minutes, 0),
+                notes=notes,
+            )
+
+        serializer = FilamentSnapshotSerializer(filament)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class FilamentDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, identifier):
+        _require_admin(request.user)
+        try:
+            filament = _get_filament(identifier)
+        except Filament.DoesNotExist:
+            raise ValidationError("No encontramos el filamento solicitado.")
+
+        reorder_point = request.data.get("reorderPointGrams")
+        if reorder_point is None:
+            reorder_point = request.data.get("reorder_point_grams")
+        if reorder_point is None:
+            raise ValidationError("Indicá el nuevo punto de reorden.")
+
+        filament.reorder_point_grams = max(_parse_int(reorder_point), 0)
+        filament.save(update_fields=["reorder_point_grams", "updated_at"])
+        return Response(FilamentSnapshotSerializer(filament).data)
+
+
+class FilamentAdjustView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, identifier):
+        _require_admin(request.user)
+        delta = request.data.get("delta")
+        if delta is None:
+            raise ValidationError("Indicá la variación en gramos (delta).")
+
+        try:
+            filament = _get_filament(identifier)
+        except Filament.DoesNotExist:
+            raise ValidationError("No encontramos el filamento solicitado.")
+
+        try:
+            filament.adjust(_parse_int(delta), commit=True)
+        except ValueError as exc:
+            raise ValidationError(str(exc))
+
+        return Response(FilamentSnapshotSerializer(filament).data)
+
+
+class MachineCollectionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        _require_admin(request.user)
+        payload = request.data or {}
+        identifier = (payload.get("id") or payload.get("identifier") or "").strip()
+        name = (payload.get("name") or "").strip()
+        if not identifier or not name:
+            raise ValidationError("Completá el ID y nombre de la máquina.")
+
+        model = (payload.get("model") or "").strip()
+        nozzle = (payload.get("nozzle") or "").strip()
+        status_value = (payload.get("status") or Machine.STATUS_ONLINE).strip().lower()
+        if status_value not in dict(Machine.STATUS_CHOICES):
+            status_value = Machine.STATUS_ONLINE
+
+        avg_speed = _parse_decimal(payload.get("avgSpeedFactor") or payload.get("avg_speed_factor") or "1", "1")
+        maintenance_every = max(
+            _parse_int(payload.get("maintenanceEveryHours") or payload.get("maintenance_every_hours") or 120),
+            1,
+        )
+        maintenance_used = max(
+            _parse_int(payload.get("maintenanceHoursUsed") or payload.get("maintenance_hours_used") or 0),
+            0,
+        )
+        materials = _normalize_materials(payload.get("compatibleMaterials") or payload.get("compatible_materials"))
+
+        with transaction.atomic():
+            machine = Machine.objects.create(
+                identifier=identifier,
+                name=name,
+                model=model,
+                status=status_value,
+                nozzle=nozzle,
+                avg_speed_factor=avg_speed,
+                maintenance_every_hours=maintenance_every,
+                maintenance_hours_used=maintenance_used,
+                compatible_materials=materials,
+            )
+
+        machine = Machine.objects.prefetch_related("jobs").get(pk=machine.pk)
+        return Response(MachineSnapshotSerializer(machine).data, status=status.HTTP_201_CREATED)
+
+
+class MachineDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, identifier):
+        _require_admin(request.user)
+        machine = get_object_or_404(Machine, identifier=identifier)
+        payload = request.data or {}
+
+        for field in ["name", "model", "nozzle"]:
+            value = payload.get(field)
+            if value is not None:
+                setattr(machine, field, str(value).strip())
+
+        if "status" in payload:
+            status_value = str(payload.get("status")).strip().lower()
+            if status_value in dict(Machine.STATUS_CHOICES):
+                machine.status = status_value
+
+        if "avgSpeedFactor" in payload or "avg_speed_factor" in payload:
+            machine.avg_speed_factor = _parse_decimal(
+                payload.get("avgSpeedFactor") or payload.get("avg_speed_factor") or "1",
+                "1",
+            )
+
+        if "maintenanceEveryHours" in payload or "maintenance_every_hours" in payload:
+            machine.maintenance_every_hours = max(
+                _parse_int(payload.get("maintenanceEveryHours") or payload.get("maintenance_every_hours"), 120),
+                1,
+            )
+
+        if "maintenanceHoursUsed" in payload or "maintenance_hours_used" in payload:
+            machine.maintenance_hours_used = max(
+                _parse_int(payload.get("maintenanceHoursUsed") or payload.get("maintenance_hours_used"), 0),
+                0,
+            )
+
+        if "compatibleMaterials" in payload or "compatible_materials" in payload:
+            machine.compatible_materials = _normalize_materials(
+                payload.get("compatibleMaterials") or payload.get("compatible_materials")
+            )
+
+        machine.save()
+        machine = Machine.objects.prefetch_related("jobs").get(pk=machine.pk)
+        return Response(MachineSnapshotSerializer(machine).data)
+
+    def delete(self, request, identifier):
+        _require_admin(request.user)
+        machine = get_object_or_404(Machine, identifier=identifier)
+        machine.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MachineMaintenanceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, identifier):
+        _require_admin(request.user)
+        machine = get_object_or_404(Machine, identifier=identifier)
+        machine.register_maintenance(commit=True)
+        machine.status = Machine.STATUS_ONLINE
+        machine.save(update_fields=["status"])
+        machine = Machine.objects.prefetch_related("jobs").get(pk=machine.pk)
+        return Response(MachineSnapshotSerializer(machine).data)
+
+
+class MachineJobMoveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, identifier, job_id):
+        _require_admin(request.user)
+        direction = str(request.data.get("direction") or "").lower()
+        if direction not in {"up", "down"}:
+            raise ValidationError("Indicá la dirección (up/down).")
+
+        machine = get_object_or_404(Machine, identifier=identifier)
+        jobs = list(machine.jobs.order_by("position", "id"))
+        index = next((idx for idx, job in enumerate(jobs) if job.id == job_id), None)
+        if index is None:
+            raise ValidationError("No encontramos ese trabajo en la cola.")
+
+        target_index = index - 1 if direction == "up" else index + 1
+        if target_index < 0 or target_index >= len(jobs):
+            return Response(MachineSnapshotSerializer(machine).data)
+
+        jobs[index], jobs[target_index] = jobs[target_index], jobs[index]
+        for idx, job in enumerate(jobs):
+            if job.position != idx:
+                job.position = idx
+                job.save(update_fields=["position"])
+        machine = Machine.objects.prefetch_related("jobs").get(pk=machine.pk)
+        return Response(MachineSnapshotSerializer(machine).data)
+
+
+class MachineJobPositionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, identifier, job_id):
+        _require_admin(request.user)
+        machine = get_object_or_404(Machine, identifier=identifier)
+        position = request.data.get("position")
+        if position is None:
+            raise ValidationError("Indicá la posición deseada (position).")
+        position = max(_parse_int(position) - 1, 0)
+
+        jobs = list(machine.jobs.order_by("position", "id"))
+        job = next((item for item in jobs if item.id == job_id), None)
+        if job is None:
+            raise ValidationError("No encontramos ese trabajo en la cola.")
+
+        jobs.remove(job)
+        position = min(position, len(jobs))
+        jobs.insert(position, job)
+        for idx, queue_job in enumerate(jobs):
+            if queue_job.position != idx:
+                queue_job.position = idx
+                queue_job.save(update_fields=["position"])
+        machine = Machine.objects.prefetch_related("jobs").get(pk=machine.pk)
+        return Response(MachineSnapshotSerializer(machine).data)
+
+
+class ReservationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        _require_admin(request.user)
+        order_id = str(request.data.get("orderId") or request.data.get("order_id") or "").strip()
+        items = request.data.get("items") or []
+        if not order_id:
+            raise ValidationError("Indicá el orderId.")
+
+        existing = FilamentReservation.objects.filter(order_id=order_id).select_related("filament")
+        if existing.exists():
+            return Response(FilamentReservationSerializer(existing, many=True).data)
+
+        if not items:
+            raise ValidationError("No hay ítems para reservar.")
+
+        created = []
+        with transaction.atomic():
+            for item in items:
+                sku = (item.get("sku") or "").strip().upper()
+                if not sku:
+                    raise ValidationError("Todos los ítems deben indicar un SKU.")
+                filament = get_object_or_404(Filament, sku=sku)
+                qty = max(_parse_int(item.get("qty") or item.get("quantity") or 1), 1)
+                grams_per_unit = _parse_int(item.get("gramsPerUnit") or item.get("grams_per_unit") or 0)
+                if grams_per_unit <= 0:
+                    grams_per_unit = max(filament.grams_per_unit, 0)
+                if grams_per_unit <= 0:
+                    raise ValidationError(f"El filamento {filament.sku} no tiene gramos por unidad configurado.")
+                grams_needed = grams_per_unit * qty
+                if filament.free_grams < grams_needed:
+                    raise ValidationError(f"No hay suficiente stock libre para {filament.sku}.")
+
+                filament.grams_reserved += grams_needed
+                filament.save(update_fields=["grams_reserved", "updated_at"])
+                reservation = FilamentReservation.objects.create(
+                    order_id=order_id,
+                    filament=filament,
+                    grams=grams_needed,
+                    metadata={
+                        "qty": qty,
+                        "gramsPerUnit": grams_per_unit,
+                        "sku": sku,
+                    },
+                )
+                created.append(reservation)
+
+        return Response(FilamentReservationSerializer(created, many=True).data, status=status.HTTP_201_CREATED)
+
+
+class ReservationConsumeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id):
+        _require_admin(request.user)
+        reservations = list(
+            FilamentReservation.objects.filter(order_id=order_id).select_related("filament")
+        )
+        if not reservations:
+            return Response([], status=status.HTTP_200_OK)
+
+        with transaction.atomic():
+            for reservation in reservations:
+                filament = reservation.filament
+                filament.grams_reserved = max(filament.grams_reserved - reservation.grams, 0)
+                filament.grams_available = max(filament.grams_available - reservation.grams, 0)
+                filament.save(update_fields=["grams_reserved", "grams_available", "updated_at"])
+            data = FilamentReservationSerializer(reservations, many=True).data
+            FilamentReservation.objects.filter(order_id=order_id).delete()
+        return Response(data)
+
+
+class ReservationReleaseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id):
+        _require_admin(request.user)
+        reservations = list(
+            FilamentReservation.objects.filter(order_id=order_id).select_related("filament")
+        )
+        if not reservations:
+            return Response([], status=status.HTTP_200_OK)
+
+        with transaction.atomic():
+            for reservation in reservations:
+                filament = reservation.filament
+                filament.grams_reserved = max(filament.grams_reserved - reservation.grams, 0)
+                filament.save(update_fields=["grams_reserved", "updated_at"])
+            data = FilamentReservationSerializer(reservations, many=True).data
+            FilamentReservation.objects.filter(order_id=order_id).delete()
+        return Response(data)
+
+
+class AvailableToPromiseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, sku):
+        _require_admin(request.user)
+        sku = sku.strip().upper()
+        filaments = Filament.objects.filter(sku=sku)
+        if not filaments.exists():
+            raise ValidationError("No encontramos filamento para ese SKU.")
+
+        first_filament = filaments.first()
+        grams_per_unit = max(first_filament.grams_per_unit, 0) or 80
+        free_grams = sum(f.free_grams for f in filaments)
+        units_by_materials = free_grams // grams_per_unit if grams_per_unit else 0
+
+        machines = Machine.objects.filter(
+            compatible_materials__contains=[first_filament.material]
+        )
+        est_minutes = _default_print_minutes(first_filament)
+
+        def _units_available(window_hours):
+            window_minutes = window_hours * 60
+            total_minutes = 0
+            for machine in machines:
+                if machine.status != Machine.STATUS_ONLINE:
+                    continue
+                queue_minutes = machine.queue_eta_minutes
+                available = max(window_minutes - queue_minutes, 0)
+                available = int(available * float(machine.avg_speed_factor))
+                total_minutes += available
+            if est_minutes <= 0:
+                return 0
+            return total_minutes // est_minutes
+
+        payload = {
+            "sku": sku,
+            "material": first_filament.material,
+            "freeGrams": free_grams,
+            "gramsPerUnit": grams_per_unit,
+            "unitsByMaterials": units_by_materials,
+            "unitsAvailable24h": _units_available(24),
+            "unitsAvailable72h": _units_available(72),
+        }
+        return Response(payload)

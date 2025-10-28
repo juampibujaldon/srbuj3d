@@ -6,6 +6,10 @@ from .models import (
     Admin,
     Cart,
     FeatureFlag,
+    Filament,
+    FilamentReservation,
+    Machine,
+    MachineJob,
     Order,
     OrderFile,
     OrderItem,
@@ -344,3 +348,105 @@ class FeatureFlagSerializer(serializers.ModelSerializer):
         model = FeatureFlag
         fields = ["id", "key", "enabled", "description", "updated_at"]
         read_only_fields = ["id", "updated_at", "description"]
+
+
+class FilamentSnapshotSerializer(serializers.ModelSerializer):
+    id = serializers.SerializerMethodField()
+    gramsAvailable = serializers.IntegerField(source="grams_available")
+    gramsReserved = serializers.IntegerField(source="grams_reserved")
+    freeGrams = serializers.SerializerMethodField()
+    reorderPointGrams = serializers.IntegerField(source="reorder_point_grams")
+    gramsPerUnit = serializers.IntegerField(source="grams_per_unit")
+    estPrintMinPerUnit = serializers.IntegerField(source="est_print_min_per_unit")
+
+    class Meta:
+        model = Filament
+        fields = [
+            "id",
+            "sku",
+            "material",
+            "color",
+            "diameter",
+            "gramsAvailable",
+            "gramsReserved",
+            "freeGrams",
+            "reorderPointGrams",
+            "gramsPerUnit",
+            "estPrintMinPerUnit",
+            "notes",
+        ]
+
+    def get_id(self, obj):
+        return obj.external_id or obj.pk
+
+    def get_freeGrams(self, obj):
+        return obj.free_grams
+
+
+class MachineJobSnapshotSerializer(serializers.ModelSerializer):
+    estMinutesPerUnit = serializers.IntegerField(source="est_minutes_per_unit")
+    remainingMinutes = serializers.IntegerField(source="remaining_minutes")
+    qty = serializers.IntegerField(source="quantity")
+
+    class Meta:
+        model = MachineJob
+        fields = [
+            "id",
+            "sku",
+            "title",
+            "qty",
+            "estMinutesPerUnit",
+            "remainingMinutes",
+            "position",
+        ]
+
+
+class MachineSnapshotSerializer(serializers.ModelSerializer):
+    id = serializers.CharField(source="identifier")
+    maintenanceEveryHours = serializers.IntegerField(source="maintenance_every_hours")
+    maintenanceHoursUsed = serializers.IntegerField(source="maintenance_hours_used")
+    avgSpeedFactor = serializers.DecimalField(source="avg_speed_factor", max_digits=5, decimal_places=2)
+    queue = MachineJobSnapshotSerializer(many=True, source="jobs")
+    queueEtaMinutes = serializers.SerializerMethodField()
+    compatibleMaterials = serializers.ListField(source="compatible_materials")
+
+    class Meta:
+        model = Machine
+        fields = [
+            "id",
+            "name",
+            "model",
+            "status",
+            "nozzle",
+            "avgSpeedFactor",
+            "maintenanceEveryHours",
+            "maintenanceHoursUsed",
+            "queueEtaMinutes",
+            "compatibleMaterials",
+            "queue",
+        ]
+
+    def get_queueEtaMinutes(self, obj):
+        return obj.queue_eta_minutes
+
+
+class FilamentReservationSerializer(serializers.ModelSerializer):
+    filamentSku = serializers.CharField(source="filament.sku", read_only=True)
+    filamentId = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FilamentReservation
+        fields = [
+            "id",
+            "order_id",
+            "filamentId",
+            "filamentSku",
+            "grams",
+            "metadata",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "filamentSku", "filamentId", "created_at", "updated_at"]
+
+    def get_filamentId(self, obj):
+        return obj.filament.external_id or obj.filament.pk
