@@ -120,6 +120,25 @@ def _parse_database_url(url: str) -> dict:
     }
 
 
+def _sqlite_config():
+    return {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+
+
+def _mysql_config():
+    return {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": os.getenv("NAME", "railway"),
+        "USER": os.getenv("USER", "root"),
+        "PASSWORD": os.getenv("PASSWORD", ""),
+        "HOST": os.getenv("HOST", "mysql.railway.internal"),
+        "PORT": os.getenv("PORT", "3306"),
+        "OPTIONS": {},
+    }
+
+
 def _database_from_env() -> dict:
     url = os.getenv("MYSQL_URL") or os.getenv("DATABASE_URL")
     if url:
@@ -127,15 +146,21 @@ def _database_from_env() -> dict:
             return _parse_database_url(url) | {"CONN_MAX_AGE": 600}
         except ValueError:
             pass
-    # fallback local
-    return {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": os.getenv("NAME", "railway"),
-        "USER": os.getenv("USER", "root"),
-        "PASSWORD": os.getenv("PASSWORD", ""),
-        "HOST": os.getenv("HOST", "mysql.railway.internal"),
-        "PORT": "3306",
-    }
+
+    explicit_engine = os.getenv("DB_ENGINE") or ""
+    explicit_engine = explicit_engine.strip()
+    if explicit_engine == "django.db.backends.sqlite3":
+        return _sqlite_config()
+    if explicit_engine in {"django.db.backends.mysql", "django.db.backends.postgresql"}:
+        return _mysql_config()
+
+    if os.getenv("RAILWAY_ENVIRONMENT"):
+        return _mysql_config()
+
+    if os.getenv("HOST") or os.getenv("DB_HOST"):
+        return _mysql_config()
+
+    return _sqlite_config()
 
 
 DATABASES = {"default": _database_from_env()}
