@@ -16,15 +16,25 @@ SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-placeholder")
 
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 
+def _env_list(key: str, *, default=None):
+    value = os.getenv(key)
+    if not value:
+        return list(default) if default else []
+    items = [item.strip() for item in value.split(",")]
+    return [item for item in items if item]
+
+
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()]
 if not ALLOWED_HOSTS:
     ALLOWED_HOSTS = ["localhost", "127.0.0.1", ".railway.app"]
 
-CSRF_TRUSTED_ORIGINS = [
+DEFAULT_CSRF_TRUSTED = [
     "https://*.railway.app",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://srbuj3d.netlify.app",
 ]
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(DEFAULT_CSRF_TRUSTED + _env_list("CSRF_TRUSTED_ORIGINS")))
 
 # ==============================
 # 🧩 APPS INSTALADAS
@@ -177,11 +187,12 @@ REST_FRAMEWORK = {
 # ==============================
 # 🌐 CORS CONFIG
 # ==============================
-CORS_ALLOWED_ORIGINS = [
+DEFAULT_CORS_ORIGINS = [
     "http://localhost:3000",
-    "http://srbuj3d-production.up.railway.app",
+    "https://srbuj3d-production.up.railway.app",
     "https://srbuj3d.netlify.app",
 ]
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(DEFAULT_CORS_ORIGINS + _env_list("CORS_ALLOWED_ORIGINS")))
 CORS_ALLOW_CREDENTIALS = True
 
 # ==============================
