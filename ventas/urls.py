@@ -18,6 +18,7 @@ public_router.register(r'orders', views.OrderViewSet, basename='public-orders')
 urlpatterns = [
     path('ventas/model', include(router.urls)),
     path('', include(public_router.urls)),
+    path('health/', views.HealthCheckView.as_view(), name='health-check'),
     path('productos/', views.ProductListCreateView.as_view(), name='productos-list'),
     path('productos/<int:pk>/', views.ProductDetailView.as_view(), name='productos-detail'),
     # Endpoints específicos usados por el frontend

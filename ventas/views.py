@@ -5,6 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 
 import requests
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
@@ -56,6 +57,19 @@ from .serializer import (
     FilamentReservationSerializer,
 )
 from .throttles import FileUploadRateThrottle, ShippingQuoteAnonRateThrottle, ShippingQuoteRateThrottle
+
+
+class HealthCheckView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(
+            {
+                "status": "ok",
+                "time": timezone.now().isoformat(),
+                "debug": settings.DEBUG,
+            }
+        )
 
 class AdminView(viewsets.ModelViewSet):
     serializer_class = AdminSerializer
