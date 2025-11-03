@@ -179,8 +179,8 @@ REST_FRAMEWORK = {
 # ==============================
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    f"https://{os.getenv('ALLOWED_HOSTS')}",
+    "http://srbuj3d-production.up.railway.app",
+    "https://srbuj3d.netlify.app",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
