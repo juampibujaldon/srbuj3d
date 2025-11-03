@@ -12,20 +12,37 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
+from urllib.parse import urlparse, parse_qsl
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+# Environment helpers
+def _env_bool(value, default=False):
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_list(value, default=None):
+    if value is None:
+        return list(default) if default else []
+    items = [item.strip() for item in value.split(",")]
+    return [item for item in items if item]
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-t^^-)6(82m59=xfd43*1!s2lw(c+zy(*ul0961frsmk)rbxx6n'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-t^^-)6(82m59=xfd43*1!s2lw(c+zy(*ul0961frsmk)rbxx6n')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = _env_bool(os.getenv('DJANGO_DEBUG'), default=True)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = _env_list(os.getenv('DJANGO_ALLOWED_HOSTS'), default=['localhost', '127.0.0.1'])
+if not ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 
 # Application definition
@@ -36,6 +53,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'whitenoise.runserver_nostatic',
     'corsheaders',
     'rest_framework',
     'django.contrib.staticfiles',
@@ -47,6 +65,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -83,17 +102,59 @@ WSGI_APPLICATION = 'srbuj_3d.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-default_db_engine = os.getenv('DB_ENGINE') or 'django.db.backends.mysql'
+default_db_engine = os.getenv('DB_ENGINE', 'django.db.backends.mysql')
+
+
+def _parse_database_url(url: str) -> dict:
+    parsed = urlparse(url)
+    engine_map = {
+        'postgres': 'django.db.backends.postgresql',
+        'postgresql': 'django.db.backends.postgresql',
+        'pgsql': 'django.db.backends.postgresql',
+        'postgresql_psycopg2': 'django.db.backends.postgresql',
+        'mysql': 'django.db.backends.mysql',
+        'mysql2': 'django.db.backends.mysql',
+    }
+    scheme = (parsed.scheme or '').split('+')[0]
+    engine = engine_map.get(scheme)
+    if not engine:
+        raise ValueError(f"Unsupported database engine in DATABASE_URL: {parsed.scheme!r}")
+
+    options = {}
+    if parsed.query:
+        options = {key: value for key, value in parse_qsl(parsed.query, keep_blank_values=True)}
+
+    return {
+        'ENGINE': engine,
+        'NAME': parsed.path.lstrip('/') or os.getenv('DB_NAME', ''),
+        'USER': parsed.username or '',
+        'PASSWORD': parsed.password or '',
+        'HOST': parsed.hostname or '',
+        'PORT': str(parsed.port) if parsed.port else '',
+        'OPTIONS': options,
+    }
+
+
+def _database_from_env() -> dict:
+    url = os.getenv('DATABASE_URL')
+    if url:
+        try:
+            return _parse_database_url(url)
+        except ValueError:
+            pass
+    return {
+        'ENGINE': os.getenv('DB_ENGINE', default_db_engine),
+        'NAME': os.getenv('DB_NAME', 'srbuj_db'),
+        'USER': os.getenv('DB_USER', 'root'),
+        'PASSWORD': os.getenv('DB_PASSWORD', '070524JN'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '3306'),
+        'OPTIONS': {},
+    }
+
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'srbuj_db',
-        'USER': 'root',
-        'PASSWORD': '070524JN',
-        'HOST': 'localhost',
-        'PORT': '3306',
-    }
+    'default': _database_from_env()
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -127,9 +188,19 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -149,14 +220,22 @@ REST_FRAMEWORK = {
     },
 }
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-
-]
-CORS_ALLOW_CREDENTIALS = True #esto es para las cookies 
-
-CSRF_TRUSTED_ORIGINS = [
+_default_frontend_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+CORS_ALLOWED_ORIGINS = _env_list(
+    os.getenv('CORS_ALLOWED_ORIGINS'),
+    default=_default_frontend_origins,
+)
+if not CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS = list(_default_frontend_origins)
+
+CORS_ALLOW_CREDENTIALS = _env_bool(os.getenv('CORS_ALLOW_CREDENTIALS'), default=True)  # esto es para las cookies
+
+CSRF_TRUSTED_ORIGINS = _env_list(
+    os.getenv('CSRF_TRUSTED_ORIGINS'),
+    default=_default_frontend_origins,
+)
+if not CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS = list(_default_frontend_origins)
