@@ -231,7 +231,12 @@ CORS_ALLOWED_ORIGINS = _env_list(
 if not CORS_ALLOWED_ORIGINS:
     CORS_ALLOWED_ORIGINS = list(_default_frontend_origins)
 
+CORS_ALLOW_ALL_ORIGINS = _env_bool(os.getenv('CORS_ALLOW_ALL'), default=False)
 CORS_ALLOW_CREDENTIALS = _env_bool(os.getenv('CORS_ALLOW_CREDENTIALS'), default=True)  # esto es para las cookies
+
+if CORS_ALLOW_ALL_ORIGINS:
+    # When true, the rest framework will accept requests from any origin.
+    CORS_ALLOWED_ORIGINS = []
 
 CSRF_TRUSTED_ORIGINS = _env_list(
     os.getenv('CSRF_TRUSTED_ORIGINS'),
