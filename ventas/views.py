@@ -71,6 +71,13 @@ class HealthCheckView(APIView):
             }
         )
 
+
+class PingView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({"ping": "pong"}, status=status.HTTP_200_OK)
+
 class AdminView(viewsets.ModelViewSet):
     serializer_class = AdminSerializer
     queryset = Admin.objects.all()

@@ -16,6 +16,13 @@ SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-placeholder")
 
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 
+
+def _env_bool(key: str, *, default=False):
+    value = os.getenv(key)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
 def _env_list(key: str, *, default=None):
     value = os.getenv(key)
     if not value:
@@ -222,8 +229,14 @@ DEFAULT_CORS_ORIGINS = [
     "https://srbuj3d-production.up.railway.app",
     "https://srbuj3d.netlify.app",
 ]
-CORS_ALLOWED_ORIGINS = list(dict.fromkeys(DEFAULT_CORS_ORIGINS + _env_list("CORS_ALLOWED_ORIGINS")))
-CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_ALL_ORIGINS = _env_bool("CORS_ALLOW_ALL", default=False)
+if CORS_ALLOW_ALL_ORIGINS:
+    CORS_ALLOWED_ORIGINS = []
+else:
+    CORS_ALLOWED_ORIGINS = list(dict.fromkeys(DEFAULT_CORS_ORIGINS + _env_list("CORS_ALLOWED_ORIGINS")))
+
+CORS_ALLOW_CREDENTIALS = _env_bool("CORS_ALLOW_CREDENTIALS", default=True)
 
 # ==============================
 # 🔒 SEGURIDAD EXTRA (RAILWAY HTTPS)
