@@ -36,12 +36,12 @@ def _env_list(key: str, *, default=None):
     return [item for item in items if item]
 
 
-ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS", default=["*"])
-if not ALLOWED_HOSTS:
-    ALLOWED_HOSTS = ["*"]
+# ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS", default=["*"])
+# if not ALLOWED_HOSTS:
+#     ALLOWED_HOSTS = ["*"]
 
-CSRF_TRUSTED_ORIGINS = _env_list("CSRF_TRUSTED_ORIGINS")
-CORS_ALLOW_CREDENTIALS = True
+# CSRF_TRUSTED_ORIGINS = _env_list("CSRF_TRUSTED_ORIGINS")
+# CORS_ALLOW_CREDENTIALS = True
 
 # ==============================
 # 🧩 APPS INSTALADAS
@@ -222,19 +222,19 @@ REST_FRAMEWORK = {
 # ==============================
 # 🌐 CORS CONFIG
 # ==============================
-DEFAULT_CORS_ORIGINS = [
-    "http://localhost:3000",
-    "https://srbuj3d-production.up.railway.app",
-    "https://srbuj3d.netlify.app",
-]
+# DEFAULT_CORS_ORIGINS = [
+#     "http://localhost:3000",
+#     "https://srbuj3d-production.up.railway.app",
+#     "https://srbuj3d.netlify.app",
+# ]
 
-CORS_ALLOW_ALL_ORIGINS = _env_bool("CORS_ALLOW_ALL", default=True)
-if CORS_ALLOW_ALL_ORIGINS:
-    CORS_ALLOWED_ORIGINS = []
-else:
-    CORS_ALLOWED_ORIGINS = list(dict.fromkeys(DEFAULT_CORS_ORIGINS + _env_list("CORS_ALLOWED_ORIGINS")))
+# CORS_ALLOW_ALL_ORIGINS = _env_bool("CORS_ALLOW_ALL", default=True)
+# if CORS_ALLOW_ALL_ORIGINS:
+#     CORS_ALLOWED_ORIGINS = []
+# else:
+#     CORS_ALLOWED_ORIGINS = list(dict.fromkeys(DEFAULT_CORS_ORIGINS + _env_list("CORS_ALLOWED_ORIGINS")))
 
-CORS_ALLOW_CREDENTIALS = _env_bool("CORS_ALLOW_CREDENTIALS", default=True)
+# CORS_ALLOW_CREDENTIALS = _env_bool("CORS_ALLOW_CREDENTIALS", default=True)
 
 # ==============================
 # 🔒 SEGURIDAD EXTRA (RAILWAY HTTPS)
@@ -247,3 +247,5 @@ CSRF_COOKIE_SECURE = True
 # 🧱 AUTO FIELD
 # ==============================
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+ALLOWED_HOSTS = ['*']
