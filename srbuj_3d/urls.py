@@ -18,10 +18,16 @@ from django.contrib import admin
 from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
 
+
+def root_ping(request):
+    return JsonResponse({"status": "ok"}, status=200)
+
 urlpatterns = [
+    path('', root_ping, name='root-ping'),
     path('admin/', admin.site.urls),
     path('api/', include('ventas.urls')),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
