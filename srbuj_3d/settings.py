@@ -14,35 +14,34 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ==============================
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-placeholder")
 
-DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
+DEBUG = os.getenv("DEBUG", "False").strip().lower() in {"true", "1", "t", "yes", "on"}
 
 
 def _env_bool(key: str, *, default=False):
     value = os.getenv(key)
     if value is None:
         return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+    value = value.strip()
+    if value.startswith("="):
+        value = value[1:].strip()
+    return value.lower() in {"1", "true", "yes", "on"}
 
 def _env_list(key: str, *, default=None):
     value = os.getenv(key)
     if not value:
         return list(default) if default else []
+    if value.startswith("="):
+        value = value[1:]
     items = [item.strip() for item in value.split(",")]
     return [item for item in items if item]
 
 
-ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()]
+ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS", default=["*"])
 if not ALLOWED_HOSTS:
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1", ".railway.app"]
+    ALLOWED_HOSTS = ["*"]
 
-DEFAULT_CSRF_TRUSTED = [
-    "https://*.railway.app",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://srbuj3d.netlify.app",
-]
+CSRF_TRUSTED_ORIGINS = _env_list("CSRF_TRUSTED_ORIGINS")
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(DEFAULT_CSRF_TRUSTED + _env_list("CSRF_TRUSTED_ORIGINS")))
 
 # ==============================
 # 🧩 APPS INSTALADAS
@@ -148,28 +147,27 @@ def _mysql_config():
 
 
 def _database_from_env() -> dict:
-    if os.getenv("USE_SQLITE", "").lower() in {"1", "true", "yes", "on"}:
+    explicit_engine = (os.getenv("DB_ENGINE") or "").strip()
+    if explicit_engine == "django.db.backends.sqlite3":
         return _sqlite_config()
+    if explicit_engine in {"django.db.backends.mysql", "django.db.backends.postgresql"}:
+        return _mysql_config()
 
     url = os.getenv("MYSQL_URL") or os.getenv("DATABASE_URL")
+    use_sqlite = _env_bool(
+        "USE_SQLITE",
+        default=not bool(url or os.getenv("HOST") or os.getenv("DB_HOST")),
+    )
+    if use_sqlite:
+        return _sqlite_config()
+
     if url:
         try:
             return _parse_database_url(url) | {"CONN_MAX_AGE": 600}
         except ValueError:
             pass
 
-    explicit_engine = os.getenv("DB_ENGINE") or ""
-    explicit_engine = explicit_engine.strip()
-    if explicit_engine == "django.db.backends.sqlite3":
-        return _sqlite_config()
-    if explicit_engine in {"django.db.backends.mysql", "django.db.backends.postgresql"}:
-        return _mysql_config()
-
-    if os.getenv("MYSQL_URL") or os.getenv("DATABASE_URL"):
-        return _mysql_config()
-
-    host_envs = [os.getenv("HOST"), os.getenv("DB_HOST")]
-    if any(host_envs):
+    if os.getenv("HOST") or os.getenv("DB_HOST"):
         return _mysql_config()
 
     return _sqlite_config()
@@ -230,7 +228,7 @@ DEFAULT_CORS_ORIGINS = [
     "https://srbuj3d.netlify.app",
 ]
 
-CORS_ALLOW_ALL_ORIGINS = _env_bool("CORS_ALLOW_ALL", default=False)
+CORS_ALLOW_ALL_ORIGINS = _env_bool("CORS_ALLOW_ALL", default=True)
 if CORS_ALLOW_ALL_ORIGINS:
     CORS_ALLOWED_ORIGINS = []
 else:
