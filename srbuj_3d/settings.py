@@ -34,6 +34,7 @@ DEFAULT_CSRF_TRUSTED = [
     "http://127.0.0.1:3000",
     "https://srbuj3d.netlify.app",
 ]
+CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(DEFAULT_CSRF_TRUSTED + _env_list("CSRF_TRUSTED_ORIGINS")))
 
 # ==============================
