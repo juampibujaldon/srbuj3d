@@ -133,8 +133,8 @@ def _mysql_config():
         "NAME": os.getenv("NAME", "railway"),
         "USER": os.getenv("USER", "root"),
         "PASSWORD": os.getenv("PASSWORD", ""),
-        "HOST": os.getenv("HOST", "mysql.railway.internal"),
-        "PORT": os.getenv("PORT", "3306"),
+        "HOST": os.getenv("HOST") or os.getenv("DB_HOST") or "mysql.railway.internal",
+        "PORT": os.getenv("PORT") or os.getenv("DB_PORT") or "3306",
         "OPTIONS": {},
     }
 
@@ -154,10 +154,19 @@ def _database_from_env() -> dict:
     if explicit_engine in {"django.db.backends.mysql", "django.db.backends.postgresql"}:
         return _mysql_config()
 
-    if os.getenv("RAILWAY_ENVIRONMENT"):
-        return _mysql_config()
-
-    if os.getenv("HOST") or os.getenv("DB_HOST"):
+    mysql_env_present = any(
+        os.getenv(key)
+        for key in [
+            "MYSQL_URL",
+            "DATABASE_URL",
+            "HOST",
+            "DB_HOST",
+            "DB_PORT",
+            "USER",
+            "PASSWORD",
+        ]
+    )
+    if mysql_env_present:
         return _mysql_config()
 
     return _sqlite_config()
