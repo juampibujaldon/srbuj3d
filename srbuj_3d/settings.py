@@ -140,6 +140,9 @@ def _mysql_config():
 
 
 def _database_from_env() -> dict:
+    if os.getenv("USE_SQLITE", "").lower() in {"1", "true", "yes", "on"}:
+        return _sqlite_config()
+
     url = os.getenv("MYSQL_URL") or os.getenv("DATABASE_URL")
     if url:
         try:
@@ -154,19 +157,11 @@ def _database_from_env() -> dict:
     if explicit_engine in {"django.db.backends.mysql", "django.db.backends.postgresql"}:
         return _mysql_config()
 
-    mysql_env_present = any(
-        os.getenv(key)
-        for key in [
-            "MYSQL_URL",
-            "DATABASE_URL",
-            "HOST",
-            "DB_HOST",
-            "DB_PORT",
-            "USER",
-            "PASSWORD",
-        ]
-    )
-    if mysql_env_present:
+    if os.getenv("MYSQL_URL") or os.getenv("DATABASE_URL"):
+        return _mysql_config()
+
+    host_envs = [os.getenv("HOST"), os.getenv("DB_HOST")]
+    if any(host_envs):
         return _mysql_config()
 
     return _sqlite_config()

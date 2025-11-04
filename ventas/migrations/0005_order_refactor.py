@@ -173,13 +173,26 @@ def rename_estado_to_status(apps, schema_editor):
     columns = get_table_columns(connection, table)
     if "estado" not in columns:
         return
-    column_type = "varchar(20)"
-    default_clause = "DEFAULT 'pendiente'"
+    vendor = connection.vendor
     quoted_table = schema_editor.quote_name(table)
-    schema_editor.execute(
-        f"ALTER TABLE {quoted_table} "
-        f"CHANGE COLUMN {schema_editor.quote_name('estado')} {schema_editor.quote_name('status')} {column_type} NOT NULL {default_clause}"
-    )
+    old_column = schema_editor.quote_name("estado")
+    new_column = schema_editor.quote_name("status")
+
+    if vendor == "mysql":
+        column_type = "varchar(20)"
+        default_clause = "DEFAULT 'pendiente'"
+        schema_editor.execute(
+            f"ALTER TABLE {quoted_table} "
+            f"CHANGE COLUMN {old_column} {new_column} {column_type} NOT NULL {default_clause}"
+        )
+    elif vendor == "sqlite":
+        schema_editor.execute(
+            f"ALTER TABLE {quoted_table} RENAME COLUMN {old_column} TO {new_column}"
+        )
+    else:
+        schema_editor.execute(
+            f"ALTER TABLE {quoted_table} RENAME COLUMN {old_column} TO {new_column}"
+        )
 
 
 def ensure_shipping_address_column(apps, schema_editor):
