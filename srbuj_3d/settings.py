@@ -234,7 +234,16 @@ REST_FRAMEWORK = {
 # else:
 #     CORS_ALLOWED_ORIGINS = list(dict.fromkeys(DEFAULT_CORS_ORIGINS + _env_list("CORS_ALLOWED_ORIGINS")))
 
-# CORS_ALLOW_CREDENTIALS = _env_bool("CORS_ALLOW_CREDENTIALS", default=True)
+# CORS_ALLOW_CREDENTIALS = _env_b›ool("CORS_ALLOW_CREDENTIALS", default=True)
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    # "https://stockify-production-7e3b.up.railway.app",  # sin / final
+    # "https://stockify-front-end-production.up.railway.app",
+    "https://srbuj3d.netlify.app"
+]
+
+
 
 # ==============================
 # 🔒 SEGURIDAD EXTRA (RAILWAY HTTPS)
