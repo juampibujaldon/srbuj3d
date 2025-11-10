@@ -58,6 +58,20 @@ npm install
 npm start
 ````
 
+🚂 Deploy en Railway
+--------------------
+
+1. Crea un servicio **Django** en Railway y conecta este repositorio.
+2. Configura la variable `PYTHON_VERSION` (opcional) y añade los valores de `.env.example` en la pestaña **Variables** (al menos `DJANGO_SECRET_KEY`, `DJANGO_DEBUG=False`, `DJANGO_ALLOWED_HOSTS`, `DATABASE_URL` o `DB_*`, `CORS_ALLOWED_ORIGINS` y `CSRF_TRUSTED_ORIGINS`).
+3. Railway instalará dependencias con `pip install -r requirements.txt` y levantará el proyecto usando el `Procfile`.
+4. Después del primer deploy abre la consola del servicio y ejecuta:
+   ```
+   python manage.py migrate
+   python manage.py collectstatic --noinput
+   python manage.py createsuperuser --noinput  # opcional
+   ```
+5. Una vez finalizado, el backend quedará expuesto en `https://<tu-servicio>.up.railway.app`.
+
 📄 License
 
 This project is licensed under the MIT license.
