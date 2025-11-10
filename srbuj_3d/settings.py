@@ -219,8 +219,11 @@ _default_frontend_origins = [
 ]
 CORS_ALLOWED_ORIGINS = _env_list(
     os.getenv('CORS_ALLOWED_ORIGINS'),
-    default=_default_frontend_origins,
-    "https://srbuj3d.netlify.app",
+    default=[
+        * _default_frontend_origins,
+        "https://srbuj3d.netlify.app",
+    ]
+)
 )
 if not CORS_ALLOWED_ORIGINS:
     CORS_ALLOWED_ORIGINS = list(_default_frontend_origins)
