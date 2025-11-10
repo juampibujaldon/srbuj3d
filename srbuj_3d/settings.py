@@ -224,7 +224,7 @@ CORS_ALLOWED_ORIGINS = _env_list(
         "https://srbuj3d.netlify.app",
     ]
 )
-)
+
 if not CORS_ALLOWED_ORIGINS:
     CORS_ALLOWED_ORIGINS = list(_default_frontend_origins)
 
